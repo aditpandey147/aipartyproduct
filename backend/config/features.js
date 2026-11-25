@@ -1,0 +1,49 @@
+// backend/config/features.js
+
+const PLAN_ACCESS = {
+  unlimited:         [3, 4],
+  podcastCreatorPro: [5],
+  viralShortsAI:     [6],
+  growthStudio:      [7],
+  brandingSuite:     [8],
+  dfy:               [9, 10],
+  ranker:            [11],
+  agency:            [12],
+  reseller:          [13],
+};
+
+function computeFeatures(user) {
+  const out = {};
+  Object.keys(PLAN_ACCESS).forEach((k) => {
+    out[k] = false;
+  });
+
+  if (!user) return out;
+
+  if (user.role === "admin") {
+    Object.keys(out).forEach((k) => {
+      out[k] = true;
+    });
+    return out;
+  }
+
+  const userPlans = Array.isArray(user.planId)
+    ? user.planId
+    : [user.planId || 1];
+
+  Object.entries(PLAN_ACCESS).forEach(([key, plans]) => {
+    out[key] = plans.some((id) => userPlans.includes(id));
+  });
+
+  return out;
+}
+
+function hasFeature(user, featureKey) {
+  return computeFeatures(user)[featureKey] === true;
+}
+
+module.exports = {
+  PLAN_ACCESS,
+  computeFeatures,
+  hasFeature,
+};
