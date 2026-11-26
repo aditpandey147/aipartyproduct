@@ -1,22 +1,20 @@
 // backend/src/controllers/partyProductController.js
-
 const fs = require("fs/promises");
-
 const path = require("path");
-const Replicate = require("replicate");
 const axios = require("axios");
-
 const { generateProductPdf } = require("../services/productPdfService");
 
 const PartyProduct = require("../models/PartyProduct");
-
 const aiService = require("../services/aiService");
 
-const REFERENCE_ROOT = path.resolve(
-  __dirname,
-  "../../frontend/public/product-images",
-);
-const REFERENCE_FOLDERS = {
+// ================================================================
+// LIVE PRODUCT REFERENCE IMAGE
+// ================================================================
+
+const PRODUCT_IMAGE_ORIGIN =
+  process.env.PRODUCT_IMAGE_ORIGIN || "https://aipartyproduct.albinolabs.com";
+
+const PRODUCT_IMAGE_FOLDERS = {
   "Party Invitations": "01-party-invitations",
   "Party Decorations": "02-party-decorations",
   "Party Games & Activities": "03-party-games-activities",
@@ -26,101 +24,93 @@ const REFERENCE_FOLDERS = {
   "Party Photo Booth Kits": "07-party-photo-booth-kits",
 };
 
-async function getTrustedReferenceUrl({
-  category,
-  productType,
-  referenceImagePath,
-}) {
-  const folder = REFERENCE_FOLDERS[category];
-  if (!folder) throw new Error("Unsupported category");
-  if (typeof referenceImagePath !== "string")
-    throw new Error("Reference image is required");
-  const prefix = `/product-images/${folder}/`;
-  const cleanPath = referenceImagePath.split(/[?#]/)[0];
-  if (!cleanPath.startsWith(prefix))
-    throw new Error("Reference category mismatch");
-  const filename = cleanPath.slice(prefix.length);
-  const slug = String(productType)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-  if (
-    !/^\d{3}-[a-z0-9-]+\.(png|jpg|jpeg|webp)$/i.test(filename) ||
-    !filename
-      .replace(/^\d{3}-/, "")
-      .replace(/\.(png|jpg|jpeg|webp)$/i, "")
-      .endsWith(slug)
-  ) {
-    throw new Error("Reference image does not match product");
+function getTrustedReferenceUrl(category, imagePath) {
+  if (!imagePath || typeof imagePath !== "string") {
+    throw new Error("Selected product reference image is missing");
   }
-  const absolute = path.resolve(REFERENCE_ROOT, folder, filename);
-  const relative = path.relative(REFERENCE_ROOT, absolute);
-  if (relative.startsWith("..") || path.isAbsolute(relative))
-    throw new Error("Unsafe reference path");
-  await fs.access(absolute);
-  const origin = process.env.PUBLIC_IMAGE_ORIGIN;
-  if (!origin) throw new Error("PUBLIC_IMAGE_ORIGIN is not configured");
-  const parsed = new URL(origin);
-  if (parsed.protocol !== "https:")
-    throw new Error("PUBLIC_IMAGE_ORIGIN must use HTTPS");
-  return new URL(`/product-images/${folder}/${filename}`, parsed).toString();
+
+  const categoryFolder = PRODUCT_IMAGE_FOLDERS[category];
+
+  if (!categoryFolder) {
+    throw new Error("Unsupported party product category");
+  }
+
+  const origin = new URL(PRODUCT_IMAGE_ORIGIN);
+
+  if (origin.protocol !== "https:") {
+    throw new Error("Product image origin must use HTTPS");
+  }
+
+  const referenceUrl = new URL(imagePath, origin);
+
+  if (referenceUrl.origin !== origin.origin) {
+    throw new Error("External reference image URLs are not allowed");
+  }
+
+  const expectedPrefix = `/product-images/${categoryFolder}/`;
+
+  if (!referenceUrl.pathname.startsWith(expectedPrefix)) {
+    throw new Error("Reference image does not match selected category");
+  }
+
+  if (!/\/\d{3}-[a-z0-9-]+\.png$/i.test(referenceUrl.pathname)) {
+    throw new Error("Invalid product reference image filename");
+  }
+
+  if (referenceUrl.search || referenceUrl.hash) {
+    throw new Error("Reference image URL contains unexpected parameters");
+  }
+
+  return referenceUrl.toString();
 }
 
 // ================================================================
-
 // STORAGE CONFIG
-
 // ================================================================
-
 const UPLOAD_ROOT = path.join(__dirname, "..", "uploads", "party-products");
 
 /**
-
  * Download a Replicate URL and save it to local disk.
-
- * Returns the public path served by Express.
-
+ * Returns the public path you'll serve via Express (e.g. /uploads/party-products/<uid>/<id>.png)
  */
-
 async function storeImageLocally(replicateUrl, userId, genId, ext = "png") {
+  // 1. Ensure the user's folder exists
   const userDir = path.join(UPLOAD_ROOT, String(userId));
-
   await fs.mkdir(userDir, { recursive: true });
 
+  // 2. Download bytes from Replicate
   const res = await axios.get(replicateUrl, {
     responseType: "arraybuffer",
-
     timeout: 60_000,
   });
 
+  // 3. Save to disk
   const filename = `${genId}.${ext}`;
-
   const localPath = path.join(userDir, filename);
-
   await fs.writeFile(localPath, Buffer.from(res.data));
 
+  // 4. Return the public URL (served by server.js at /uploads/...)
   return {
     url: `/uploads/party-products/${userId}/${filename}`,
-
     localPath,
-
     sizeBytes: res.data.byteLength || res.data.length,
-
     mimeType: res.headers["content-type"] || "image/png",
   };
 }
 
+// ✅ NEW: helper to move the PDF that generateProductPdf wrote
+// into the same user-scoped folder the image flow uses.
 async function storePdfLocally(sourcePdf, userId, genId) {
   const userDir = path.join(UPLOAD_ROOT, String(userId));
-
   await fs.mkdir(userDir, { recursive: true });
 
   const filename = `${genId}.pdf`;
-
   const localPath = path.join(userDir, filename);
 
+  // generateProductPdf wrote to a temp file — copy it into our folder
   await fs.copyFile(sourcePdf.filePath, localPath);
 
+  // Best-effort delete the temp file the service created
   try {
     await fs.unlink(sourcePdf.filePath);
   } catch (_) {}
@@ -129,30 +119,21 @@ async function storePdfLocally(sourcePdf, userId, genId) {
 
   return {
     url: `/uploads/party-products/${userId}/${filename}`,
-
     localPath,
-
     sizeBytes: stat.size,
-
     mimeType: "application/pdf",
   };
 }
 
 /**
-
- * Delete a generated file from local disk by its public URL.
-
- * Safe to call if the file is already gone.
-
+ * Delete an image from local disk by its public URL.
+ * Safe to call even if the file is already gone.
  */
-
 async function deleteLocalImage(publicUrl) {
   if (!publicUrl || !publicUrl.startsWith("/uploads/party-products/")) return;
-
+  // Map /uploads/party-products/... → backend/src/uploads/party-products/...
   const relative = publicUrl.replace(/^\/uploads\//, "");
-
   const abs = path.join(__dirname, "..", "uploads", relative);
-
   try {
     await fs.unlink(abs);
   } catch (err) {
@@ -161,205 +142,129 @@ async function deleteLocalImage(publicUrl) {
 }
 
 // ============================================================
-
 // PRODUCT BLUEPRINTS — real print formats, layouts, components
-
 // ============================================================
-
 const PRODUCT_BLUEPRINTS = [
   {
     match: /invit/i,
-
     aspectRatio: "3:4",
-
     format: "single 5x7 inch portrait invitation card, full-bleed artwork",
-
     layout:
       "one finished card, centered focal illustration or framed ornamental panel, generous safe margins, text block centered or left-aligned inside the frame",
-
     components: "one complete invitation card only",
-
     textLevels:
       "headline, honoree name as the largest element, event details block, small supporting line",
   },
-
   {
     match: /welcome|sign|poster/i,
-
     aspectRatio: "2:3",
-
     format: "tall 24x36 inch portrait welcome sign, full-bleed artwork",
-
     layout:
       "large display headline in the upper-middle, decorative frame or illustrated corners, oversized readable lettering visible from a distance, one hero illustration cluster",
-
     components: "one complete sign only",
-
     textLevels:
       "huge welcome headline, honoree or event name, one short subline",
   },
-
   {
     match: /cupcake|topper/i,
-
     aspectRatio: "3:4",
-
     format: "US Letter printable sheet, flat top-down, plain white background",
-
     layout:
       "neat grid of twelve identical-size round 2-inch topper designs in 3 columns by 4 rows, equal spacing, thin hairline cut circles around each, consistent coordinated motifs",
-
     components:
       "twelve round toppers on one sheet, matching set, varied but cohesive motifs",
-
     textLevels:
       "very short text only on toppers (name or number), large and centered",
   },
-
   {
     match: /photo.?booth|prop/i,
-
     aspectRatio: "3:4",
-
     format: "US Letter printable sheet, flat top-down, plain white background",
-
     layout:
       "six to eight coordinated photo booth props (speech bubbles, glasses, crowns, mustaches, signs) arranged without overlap, each with a thin white die-cut outline and a small stick tab area",
-
     components: "one cohesive prop set on a single sheet",
-
     textLevels: "short, bold, readable phrases only on speech-bubble props",
   },
-
   {
     match: /menu/i,
-
     aspectRatio: "2:3",
-
     format: "4x9 or 5x7 inch portrait menu card, full-bleed artwork",
-
     layout:
       "title lockup at top, ornamental divider, three to four clearly separated menu sections with generous line spacing, subtle illustrated border",
-
     components: "one complete menu card only",
-
     textLevels: "menu title, section headings, item names, small descriptions",
   },
-
   {
     match: /favor|tag|label|sticker/i,
-
     aspectRatio: "3:4",
-
     format: "US Letter printable sheet, flat top-down, plain white background",
-
     layout:
       "grid of coordinated gift tags with punched-hole circles and thin cut lines, equal spacing, matching border treatment",
-
     components: "set of identical-format tags on one sheet",
-
     textLevels: "short thank-you line area, name line, small decorative motif",
   },
-
   {
     match: /banner|bunting|garland|pennant/i,
-
     aspectRatio: "16:9",
-
     format: "flat printable banner artwork, plain white background",
-
     layout:
       "row of evenly sized pennant flags or letter cards laid out flat in one horizontal line, matching ornaments between flags, string line across the top",
-
     components: "complete banner set laid flat, one letter or motif per flag",
-
     textLevels: "one large letter or word per flag, bold and centered",
   },
-
   {
     match: /plan|checklist|schedule|tracker/i,
-
     aspectRatio: "3:4",
-
     format: "US Letter portrait printable planner page, full-bleed",
-
     layout:
       "styled header with illustration, structured ruled sections and boxes with consistent margins, clear writing space, subtle decorative corners that never touch writing areas",
-
     components: "one complete planner page",
-
     textLevels: "page title, section headings, small field labels",
   },
-
   {
     match: /game|bingo|trivia|scavenger|puzzle|quiz/i,
-
     aspectRatio: "3:4",
-
     format: "US Letter portrait printable party game sheet, full-bleed",
-
     layout:
       "clean playable game structure (grid, cards or list) with clear header, instructions area, large readable cells, themed illustrations in margins only",
-
     components: "one complete, usable game sheet",
-
     textLevels: "game title, instruction line, cell labels",
   },
-
   {
     match: /thank|card|greeting/i,
-
     aspectRatio: "3:4",
-
     format: "5x7 inch portrait card, full-bleed artwork",
-
     layout: "framed focal illustration, elegant text area, balanced margins",
-
     components: "one complete card",
-
     textLevels: "headline, short message, small closing line",
   },
 ];
 
 const DEFAULT_BLUEPRINT = {
   aspectRatio: "3:4",
-
   format: "US Letter portrait printable design, full-bleed artwork",
-
   layout:
     "clear focal point, framed decorative border, structured text area, balanced margins",
-
   components: "one complete finished product",
-
   textLevels: "headline, key name, event details, small supporting text",
 };
 
 // ============================================================
-
 // STYLE LIBRARY — concrete art direction per style
-
 // ============================================================
-
 const STYLE_LIBRARY = {
   modern:
     "bold clean geometry, asymmetrical balance, confident sans-serif or refined display type, flat vector shapes with subtle grain, 3-4 colour palette, deliberate whitespace",
-
   luxury:
     "deep rich background tones, restrained real-looking gold foil accents with soft highlights, fine linework, high-contrast editorial serif, subtle embossed paper texture, symmetrical formal layout",
-
   minimal:
     "monochrome or two-tone palette, thin precise linework, one small illustrated accent, large margins, light elegant sans-serif, quiet and gallery-like",
-
   boho: "warm terracotta, sage, sand and cream palette, hand-painted pampas grass, dried florals, arches and moons, organic shapes, soft paper grain, relaxed serif or script pairing",
-
   watercolor:
     "hand-painted watercolor washes with visible pigment blooms and soft organic edges, loose botanical or themed illustrations, cold-press paper texture, delicate script with a clean serif",
-
   kids: "friendly hand-drawn characters and objects, bright but harmonious palette, rounded chunky lettering, confetti and playful shapes arranged in an organised composition",
-
   vintage:
     "muted nostalgic palette, period-appropriate lettering, fine engraved illustration style, ornamental frames, aged-paper texture kept subtle and clean",
-
   elegant:
     "refined ornamental frame, delicate floral or line-art details, graceful calligraphy paired with a classic serif, soft neutral palette with one accent, generous spacing",
 };
@@ -373,535 +278,289 @@ function pickBlueprint(productType = "") {
 
 function pickStyle(designStyle = "Modern") {
   const key = String(designStyle).toLowerCase();
-
   const hit = Object.keys(STYLE_LIBRARY).find((k) => key.includes(k));
-
   return {
     name: designStyle || "Modern",
-
     direction: STYLE_LIBRARY[hit || "modern"],
   };
 }
 
 // Use this to pass the right aspect ratio to Grok Imagine
-
 function getAspectRatio(productType) {
   return pickBlueprint(productType).aspectRatio;
 }
 
-// ================================================================
-
-// IMAGE PROMPT — premium flat artwork with controlled typography
-
-// ================================================================
-
 async function buildImagePrompt({
   category,
-
   productType,
-
   designStyle,
-
   formData,
-
   textMode = "baked",
 }) {
   const blueprint = pickBlueprint(productType);
-
   const style = pickStyle(designStyle);
 
-  const requestedRatio = formData?.ratio || blueprint.aspectRatio;
+  const cleanedFormData = Object.fromEntries(
+    Object.entries(formData || {}).filter(
+      ([, value]) =>
+        value !== undefined &&
+        value !== null &&
+        value !== "" &&
+        value !== false,
+    ),
+  );
 
-  const fields = Object.entries(formData || {}).filter(([, value]) => {
-    if (value === undefined || value === null || value === false) return false;
-
-    return typeof value !== "string" || value.trim() !== "";
-  });
-
-  // Normalize field names for matching only. Preserve the original visible text.
-
-  const fieldWords = (key) =>
-    String(key)
-      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-
-      .replace(/([A-Z])([A-Z][a-z])/g, "$1 $2")
-
-      .replace(/[^a-zA-Z0-9]+/g, " ")
-
-      .toLowerCase()
-
-      .trim();
-
-  const designFieldPattern =
-    /\b(?:theme|style|design|template|background|color|colors|colour|colours|palette|font|typography|ratio|size|quantity|count|format|reference|prompt|file|url|notes?|options?|show|hide|include|placement|alignment)\b/;
-
-  const printFieldPattern =
-    /\b(?:name|names|title|heading|headline|subheading|subtitle|message|text|wording|caption|greeting|phrase|date|time|venue|location|address|rsvp|age|year|hashtag|host|dress code|table number|instructions|menu items)\b/;
-
-  const printableFields = [];
-
-  const visualFields = [];
-
-  for (const [key, value] of fields) {
-    const words = fieldWords(key);
-
-    const isPrintable =
-      !designFieldPattern.test(words) && printFieldPattern.test(words);
-
-    if (isPrintable) {
-      // Support a single text field or a list of text lines.
-
-      const values = Array.isArray(value) ? value : [value];
-
-      for (const line of values) {
-        const isText = typeof line === "string" && line.trim() !== "";
-
-        const isNumber = typeof line === "number" && Number.isFinite(line);
-
-        if (textMode !== "none" && (isText || isNumber)) {
-          printableFields.push({
-            field: key,
-
-            text: String(line),
-          });
-        }
-      }
-
-      continue;
-    }
-
-    if (words !== "ratio" && words !== "output format") {
-      visualFields.push([key, value]);
-    }
-  }
-
-  const visualDetails = Object.fromEntries(visualFields);
-
-  const categoryArtDirection = {
+  // The physical product must look different across these seven categories.
+  const categoryScenes = {
     "Party Invitations":
-      "Use a distinctive occasion-specific illustration or ornamental motif as the anchor. Give the invitation wording a single calm reading column. Keep the honoree and event details distinctly separated by size and spacing.",
+      "Photograph one beautifully printed invitation card as the clear hero, " +
+      "styled on a complementary surface with a few occasion-specific accents.",
 
     "Party Decorations":
-      "Design for recognition from a distance. Use one bold silhouette or motif, simple color contrast, and strong visual rhythm. For a banner, make each panel consistent in scale and spacing. For a sign, let the central information dominate.",
+      "Show the actual decoration at a believable party scale: a sign on an " +
+      "easel, a banner hanging naturally, or the named decoration in its " +
+      "proper setting. Keep the whole product visible.",
 
     "Party Games & Activities":
-      "Apply decoration to the header and perimeter. Keep the play area light, aligned, and easy to read. Preserve usable cells, answer spaces, and writing areas. Do not cover gameplay elements with decorative artwork.",
+      "Show one coordinated printed game kit on a tabletop. Cards, sheets, " +
+      "and any small game pieces should look like parts of one real product, " +
+      "arranged naturally rather than as separate collage panels.",
 
     "Party Favor Products":
-      "Design motifs that remain recognizable at small print sizes. Keep repeated pieces aligned and consistently sized. Preserve clear cut lines and leave room for any holes, folds, or closures required by the product.",
+      "Show the named tag, label, wrapper, sticker, or package applied to " +
+      "the appropriate real party favor. Make the printed product clearly visible.",
 
     "Party Planning Kits":
-      "Give the page a designed header and quiet writing areas. Use a consistent grid, fine rules, and subtle section separation. Keep boxes and fields large enough to fill in by hand.",
+      "Show one premium printed planner or workbook, closed or partly open, " +
+      "with a few relevant pages and a pen. Page layouts should have believable " +
+      "structure and generous writing space.",
 
     "Party Table Printables":
-      "Use polished stationery styling with clear reading order at tabletop distance. Keep margins consistent and related elements coordinated. Preserve fold areas and the readability of names, numbers, or menu details when supplied.",
+      "Show the named printable in use at a refined table setting, such as " +
+      "a menu beside a plate, place cards at seats, or food labels beside " +
+      "the matching display.",
 
     "Party Photo Booth Kits":
-      "Use bold, recognizable silhouettes and playful details. Make every prop a separate piece on the sheet with consistent cut outlines, clean gaps, and no overlaps.",
+      "Show the named photo booth product in a real festive booth setting. " +
+      "Paper props should be mounted on sticks and displayed as one " +
+      "coordinated physical set.",
   };
 
-  const categoryDirection =
-    categoryArtDirection[category] ||
-    "Use a strong focal point, a cohesive illustration language, and a clear layout suited to the named product. Preserve any areas needed for reading, cutting, folding, or writing.";
-
-  const occasionText = [
-    productType,
-
-    ...visualFields
-
-      .filter(([key, value]) => {
-        const words = fieldWords(key);
-
-        return (
-          /\b(?:theme|occasion|event|season|holiday)\b/.test(words) &&
-          typeof value === "string"
-        );
-      })
-
-      .map(([, value]) => value),
-  ].join(" ");
-
   const occasionDetails = [
-    [/christmas/i, "evergreen, paper ornaments, berries, and ribbon motifs"],
-
-    [/halloween/i, "playful bats, pumpkins, and a strong seasonal silhouette"],
-
     [
-      /thanksgiving/i,
-      "autumn foliage, harvest motifs, and soft warm contrasts",
+      /christmas/i,
+      "evergreen branches, ribbon, ornaments, and warm festive lights",
     ],
-
-    [/new year/i, "midnight tones, metallic ink accents, and restrained stars"],
-
     [
-      /bridal shower/i,
-      "delicate florals, ribbon linework, and refined framing",
+      /halloween/i,
+      "pumpkins, playful bats, and a sophisticated orange-and-black palette",
     ],
-
-    [/wedding/i, "refined floral linework, soft neutrals, and elegant framing"],
-
-    [/baby shower/i, "gentle colors and a small illustrated nursery motif"],
-
+    [/thanksgiving/i, "autumn foliage, small gourds, and warm harvest tones"],
     [
-      /gender reveal/i,
-      "a balanced pair of colors suited to the supplied theme",
+      /new year/i,
+      "midnight tones, tasteful metallic accents, and restrained confetti",
     ],
+    [/wedding/i, "refined ivory stationery, elegant florals, and soft linen"],
+    [/bridal shower/i, "romantic flowers, ribbon, and delicate pearl details"],
+    [/baby shower/i, "soft pastels and a few charming baby-themed details"],
+    [/gender reveal/i, "balanced pink-and-blue celebration details"],
+    [/graduation/i, "a graduation cap, diploma, and celebratory accents"],
+    [/bachelorette/i, "playful disco-inspired party details"],
+    [/birthday/i, "balloons, ribbon, and tasteful celebratory confetti"],
+  ].find(([pattern]) => pattern.test(productType));
 
-    [/graduation/i, "academic motifs, crisp geometry, and celebratory accents"],
+  const occasionDirection = occasionDetails
+    ? occasionDetails[1]
+    : "a few distinctive props that specifically suit this product and occasion";
 
-    [/bachelorette/i, "playful disco shapes and expressive graphic details"],
+  // Only fields intended to be printed may become visible lettering.
+  // Theme, colour, style, quantity, etc. remain design instructions.
+  const printableText = Object.entries(cleanedFormData)
+    .filter(
+      ([key, value]) =>
+        /name|title|heading|message|date|time|venue|location|address|rsvp|age|year|hashtag|subtitle|host/i.test(
+          key,
+        ) &&
+        (typeof value === "string" || typeof value === "number"),
+    )
+    .map(([key, value]) => `${key}: ${JSON.stringify(String(value))}`)
+    .join("\n");
 
-    [/birthday/i, "a motif drawn from the specific birthday theme"],
-  ].find(([pattern]) => pattern.test(occasionText));
+  const textInstruction =
+    textMode === "none"
+      ? `The image must contain NO readable words, letters, numbers, logos,
+watermarks, fake typography, or placeholder gibberish. Leave the printable
+areas intentionally blank while keeping the product visually finished.`
+      : printableText
+        ? `The only permitted readable text is listed below. Reproduce it
+exactly, with correct spelling and punctuation. Do not add a shop name,
+sample name, filler date, slogan, or other invented wording.
 
-  const occasionDirection =
-    occasionDetails?.[1] ||
-    "A small set of motifs drawn from the specified occasion or theme.";
-
-  const visualInstructions = Object.keys(visualDetails).length
-    ? `Use the relevant visual preferences below. Treat these as design inputs. Do not render their keys or values as lettering.
-
-
-
-${JSON.stringify(visualDetails, null, 2)}`
-    : "Choose a palette, background, and motif that fit the product, occasion, and design style.";
-
-  // Ask the text model for supporting art direction only. The final prompt
-
-  // always includes the fixed layout, background, and text requirements.
+EXACT PRINTABLE TEXT:
+${printableText}`
+        : `No printable wording was supplied. Do not invent names, dates,
+messages, or other readable text. Keep text areas intentionally blank.`;
 
   const systemPrompt = `
+You are a senior print designer and art director for premium party
+stationery. Write ONE precise image-generation prompt for xAI Grok Imagine.
 
-You are the art director for a premium printable party stationery collection.
+GOAL
+Create the ACTUAL finished, flat, print-ready ${productType} artwork.
+The generated image itself IS the product. Its background and design must
+extend to all four edges of the output canvas.
 
-Write one short paragraph of visual art direction for a finished flat design.
+ABSOLUTE COMPOSITION RULE
+Do not show a product inside another image. Do not show a printed card
+lying on a table, an invitation inside a frame, a poster on a wall, or
+a sheet surrounded by empty space. No mockup, photography, tabletop,
+hands, props, environment, perspective, tilt, contact shadows, or
+background outside the design.
 
+PRODUCT ACCURACY
+Follow the supplied blueprint for the actual ${productType}.
+For an invitation, the whole image is ONE invitation design.
+For a sign, the whole image is ONE sign design.
+For a menu or planner, the whole image is the printable page.
+For a multi-item product such as tags, toppers, or photo props, create
+ONE clean, properly spaced print sheet containing only that coordinated set.
+Never add an unrelated second product.
 
+LAYOUT
+Create one clear focal illustration suited specifically to the occasion.
+Use coordinated borders, corner details, patterns, and typography only
+where appropriate. The design background must reach every canvas edge.
+Keep important text and artwork inside an INTERNAL print-safe area;
+this is not a blank margin outside the product.
+Use the requested aspect ratio for the artwork itself.
+Do not put a portrait design inside a square background.
 
-Choose a distinctive focal motif, an intentional background treatment,
+STYLE AND QUALITY
+Use the supplied style and colours. Otherwise choose a restrained,
+occasion-appropriate palette. Keep one consistent illustration technique.
+Use crisp print detail, believable ink and paper texture within the
+artwork, clean spacing, and professional typography. Avoid generic
+flowers, gold, glitter, or balloons unless they fit the specific theme.
 
-a cohesive palette, and a supporting detail that suit the product and theme.
+TEXT
+${
+  textMode === "none"
+    ? `Do not render any words, letters, numbers, or fake text.
+Leave intentional clean areas inside the design where text can be
+added later.`
+    : `Render only text explicitly supplied in the user details.
+Copy spelling and punctuation exactly. Do not invent names, dates,
+ages, addresses, RSVP information, headings, or placeholder text.`
+}
 
-Explain where to place them so the focal point is clear and the text or
-
-functional area stays readable. Respect supplied colors and theme. If the
-
-product is a cut sheet, keep the paper area plain and put visual interest
-
-inside each cut piece.
-
-
-
-Use concrete descriptions of shapes, color, placement, and illustration
-
-technique. Avoid generic decoration and redundant adjectives. Describe
-
-only design elements that belong inside the finished artwork. Do not
-
-supply visible wording, invent event details, change the format, or add a
-
-photographic setting. Return one plain-prose paragraph of 60–110 words.
-
+OUTPUT
+Return only the final image-generation prompt as plain prose.
+Begin by stating: "The entire image canvas is the finished
+${productType} artwork, edge to edge." Describe the product-specific
+design, layout, illustration, colours, typography, and exact text.
+End with: "No mockup, no card within a scene, no outer whitespace,
+no surrounding surface, no perspective, no extra product, no watermark."
 `.trim();
 
   const userMessage = `
-
-Product: ${productType}
+Create the actual finished artwork for ${productType}.
 
 Category: ${category}
-
+Product type: ${productType}
 Format: ${blueprint.format}
-
 Layout: ${blueprint.layout}
-
 Components: ${blueprint.components}
+Text hierarchy: ${blueprint.textLevels}
+Artwork aspect ratio: ${formData?.ratio || blueprint.aspectRatio}
 
-Requested artwork ratio: ${requestedRatio}
-
-
-
-Style: ${style.name}
-
+Design style: ${style.name}
 Style direction: ${style.direction}
 
-Category direction: ${categoryDirection}
+User-provided details:
+${JSON.stringify(cleanedFormData, null, 2)}
 
-Optional occasion motifs, when consistent with the chosen theme: ${occasionDirection}
-
-
-
-${visualInstructions}
-
+The output canvas itself must be the complete ${productType}.
+Fill the canvas edge to edge with the product design. Keep the
+important content inside an internal print-safe area, but leave
+no blank space around the product. Do not create a photo or mockup.
 `.trim();
-
-  const fallbackArtDirection = `
-
-Use one hero motif tailored to the specified theme. If no specific theme
-
-was provided, select a fitting motif from this direction: ${occasionDirection}
-
-Echo it sparingly in the border, corners, or individual cut pieces.
-
-Balance the strongest visual detail with a calm, high-contrast information
-
-area. Use a restrained palette and one consistent illustration technique.
-
-Keep any texture subtle and behind the content. Make the whole composition
-
-feel designed as a single coordinated product.
-
-`.trim();
-
-  let artDirection = fallbackArtDirection;
 
   try {
     const result = await aiService.chat({
       systemPrompt,
-
       userMessage,
-
       temperature: 0.45,
-
-      maxTokens: 350,
+      maxTokens: 1100,
     });
 
     const cleaned = String(result || "")
       .replace(/^["'`]+|["'`]+$/g, "")
-
-      .replace(/^(?:art direction|prompt)\s*:\s*/i, "")
-
+      .replace(/^prompt\s*:\s*/i, "")
       .trim();
 
-    if (cleaned.length >= 100 && cleaned.length <= 1500) {
-      artDirection = cleaned;
+    if (cleaned.length < 250) {
+      throw new Error("AI returned an incomplete image prompt");
     }
+
+    return cleaned;
   } catch (err) {
     console.warn("buildImagePrompt fallback:", err.message);
+
+    return [
+      `Create exactly one premium 1:1 square ecommerce product photograph`,
+      `for "${productType}" in the "${category}" category.`,
+      categoryScenes[category] ||
+        "Show the real printed product as the central subject.",
+      `Use ${occasionDirection}.`,
+      `Follow this product format: ${blueprint.format}.`,
+      `Include these product components: ${blueprint.components}.`,
+      `Use a consistent ${style.name} style: ${style.direction}.`,
+      `Show realistic paper and material texture, professional soft lighting,`,
+      `natural contact shadows, a refined occasion-appropriate palette,`,
+      `and a complete product centred with generous square-safe margins.`,
+      textMode === "none"
+        ? "No readable text, letters, numbers, logos, or watermark."
+        : printableText
+          ? `Render only this exact supplied text: ${printableText}.`
+          : "Do not invent any readable text.",
+      `One coherent photographic scene, not a collage or flat artwork.`,
+      `Avoid distorted products, gibberish lettering, duplicate elements,`,
+      `clutter, heavy effects, and cropped edges.`,
+    ]
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
-
-  const textInstruction =
-    textMode === "none" || printableFields.length === 0
-      ? `
-
-Render no readable text, letters, numerals, watermarks, or fake typography.
-
-Keep intentional blank areas inside the artwork for later personalization.
-
-Finish those areas with the same background treatment so they feel designed.
-
-Use unlettered lines, dividers, grids, or writing boxes where the product
-
-requires them.
-
-`.trim()
-      : `
-
-Render only the text values listed below. The field names indicate where
-
-each value belongs. They are not part of the printable wording. Copy each
-
-value exactly, preserving its language, spelling, capitalization, accents,
-
-punctuation, and digits. Do not add a name, date, slogan, heading, shop
-
-branding, website, or filler phrase.
-
-
-
-EXACT PRINTABLE TEXT:
-
-${printableFields
-
-  .map(({ field, text }) => `${field}: ${JSON.stringify(text)}`)
-
-  .join("\n")}
-
-
-
-Use a clear hierarchy based on the available text: ${blueprint.textLevels}.
-
-Skip any level for which no wording was supplied. Use no more than two
-
-coordinated type styles. Reserve decorative lettering for short display
-
-text and use clear, open letterforms for details. Keep text horizontal,
-
-sharp, consistently spaced, and comfortably inside the print-safe area.
-
-Set important words against a calm background with strong contrast.
-
-Never place important text over a busy motif, detailed texture, or dark
-
-decorative edge. Give longer wording more space and use natural line
-
-breaks without dropping, duplicating, or rewriting any words. Repeat
-
-wording only when the product is a repeated-piece sheet that requires it.
-
-`.trim();
-
-  const isCutSheet = /plain white background/i.test(blueprint.format);
-
-  const backgroundDirection = isCutSheet
-    ? `
-
-Use clean white printable sheet space between separate cut pieces.
-
-Place the theme, color, illustration, and subtle texture inside each piece.
-
-Keep outlines crisp and gutters clear so every piece is easy to cut out.
-
-The sheet itself fills the entire image canvas.
-
-`.trim()
-    : `
-
-Make the background part of the artwork and extend it to all four canvas
-
-edges. Use an intentional base color, a soft tonal variation, or fine
-
-paper grain where it suits the selected style. Create visual depth with
-
-flat layers, illustrated framing, or subtle tone-on-tone details.
-
-Concentrate visual interest near the focal point and edges, then reduce
-
-detail behind the text and functional areas. Preserve any explicitly
-
-requested plain, minimal, or solid-color background.
-
-`.trim();
-
-  return `
-
-The entire image canvas is the finished ${productType} artwork, edge to edge.
-
-Create one straight-on, flat, high-detail design suitable for a premium
-
-printable party stationery collection. Compose for the boundaries of
-
-the actual output canvas and keep all important content fully visible.
-
-
-
-PRODUCT SPECIFICATION
-
-Category: ${category}
-
-Product type: ${productType}
-
-Format: ${blueprint.format}
-
-Requested artwork ratio: ${requestedRatio}
-
-Layout: ${blueprint.layout}
-
-Components: ${blueprint.components}
-
-Category-specific priorities: ${categoryDirection}
-
-
-
-ART DIRECTION
-
-Design style: ${style.name}.
-
-Style treatment: ${style.direction}.
-
-${artDirection}
-
-
-
-${visualInstructions}
-
-
-
-COMPOSITION AND FINISH
-
-Create a clear visual hierarchy with one focal element and a small set
-
-of complementary accents. Use a cohesive palette, deliberate alignment,
-
-balanced spacing, clean edges, and a consistent illustration technique.
-
-Scale motifs to the product's reading distance and intended use. Keep
-
-essential text and artwork inside an internal print-safe area. For a
-
-finished card or sign, the safe area is inside the design. For a cut
-
-sheet, keep every cut piece away from the sheet edges. Preserve writing
-
-space, usable grids, and clean cut lines wherever the format needs them.
-
-
-
-BACKGROUND
-
-${backgroundDirection}
-
-
-
-TYPOGRAPHY
-
-${textInstruction}
-
-
-
-FINAL OUTPUT
-
-Render only the complete artwork or the single coordinated printable
-
-sheet specified above. No product mockup, card sitting on a surface,
-
-photographed scene, hands, unrelated props, presentation frame, hanging
-
-display, perspective tilt, exterior whitespace, contact shadows, collage
-
-panels, duplicate sheets, cropped content, or watermark.
-
-`.trim();
 }
 
 // ================================================================
-
 // Ratio → SDXL keyword
-
 // ================================================================
-
 function mapAspect(ratio) {
   return (
     {
       "5:7": "portrait",
-
       "7:5": "wide",
-
       "2:3": "portrait",
-
       "3:2": "wide",
-
       "1:1": "square",
-
       "148:210": "portrait",
-
       "105:148": "portrait",
-
       "4:5": "portrait",
-
       "9:16": "portrait",
     }[ratio] || "square"
   );
 }
 
+// ================================================================
+// POST /api/party-products/generate
+// IMAGE-TO-IMAGE + PDF GENERATION
+// ================================================================
+
 exports.generate = async (req, res) => {
   const startedAt = Date.now();
-  let record = null;
 
   try {
-    // ============================================
-    // 1. AUTHENTICATION
-    // ============================================
-
     const userId = req.user?.id || req.user?._id;
 
     if (!userId) {
@@ -910,10 +569,6 @@ exports.generate = async (req, res) => {
         message: "Unauthorized",
       });
     }
-
-    // ============================================
-    // 2. REQUEST DATA
-    // ============================================
 
     const {
       category,
@@ -927,31 +582,20 @@ exports.generate = async (req, res) => {
     if (!category || !productType) {
       return res.status(400).json({
         success: false,
-        message: "Category and productType are required",
+        message: "Category and product type are required",
       });
     }
-
-    if (!formData || typeof formData !== "object" || Array.isArray(formData)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid formData",
-      });
-    }
-
-    // ============================================
-    // 3. OUTPUT SETTINGS
-    // ============================================
 
     const ratioLabel = formData.ratio || null;
     const aspectRatio = mapAspect(ratioLabel);
 
     const isPdf = String(outputFormat).toLowerCase() === "pdf";
 
-    // ============================================
-    // 4. CREATE PENDING PRODUCT RECORD
-    // ============================================
+    // ============================================================
+    // CREATE PENDING PRODUCT
+    // ============================================================
 
-    record = await PartyProduct.create({
+    const record = await PartyProduct.create({
       userId,
       category,
       productType,
@@ -965,118 +609,46 @@ exports.generate = async (req, res) => {
       outputFormat: isPdf ? "PDF" : "Image",
     });
 
-    // ============================================
-    // 5. BUILD DYNAMIC AI PROMPT
-    // ============================================
+    try {
+      // ============================================================
+      // BUILD EXISTING PREMIUM PRODUCT PROMPT
+      // ============================================================
 
-    const aiPrompt = await buildImagePrompt({
-      category,
-      productType,
-      designStyle,
-      formData,
-    });
+      const aiPrompt = await buildImagePrompt({
+        category,
+        productType,
+        designStyle,
+        formData,
+      });
 
-    // ============================================
-    // 6. LOCAL REFERENCE IMAGE CONFIG
-    // ============================================
+      // ============================================================
+      // RESOLVE LIVE PRODUCT REFERENCE
+      // ============================================================
 
-    const REFERENCE_ROOT = path.resolve(
-      __dirname,
-      "../../frontend/public/product-images",
-    );
+      const referenceImageUrl = getTrustedReferenceUrl(
+        category,
+        referenceImagePath,
+      );
 
-    const CATEGORY_FOLDERS = {
-      "Party Invitations": "01-party-invitations",
+      console.log("======================================");
+      console.log("AI PARTY PRODUCT GENERATION");
+      console.log("Product:", productType);
+      console.log("Category:", category);
+      console.log("Reference Image:", referenceImageUrl);
+      console.log("Output Format:", outputFormat);
+      console.log("======================================");
 
-      "Party Decorations": "02-party-decorations",
+      // ============================================================
+      // IMAGE-TO-IMAGE GENERATION
+      // ============================================================
 
-      "Party Games & Activities": "03-party-games-activities",
-
-      "Party Favor Products": "04-party-favor-products",
-
-      "Party Planning Kits": "05-party-planning-kits",
-
-      "Party Table Printables": "06-party-table-printables",
-
-      "Party Photo Booth Kits": "07-party-photo-booth-kits",
-    };
-
-    const categoryFolder = CATEGORY_FOLDERS[category];
-
-    if (!categoryFolder) {
-      throw new Error(`Unsupported category: ${category}`);
-    }
-
-    // ============================================
-    // 7. VALIDATE REFERENCE IMAGE
-    // ============================================
-
-    if (typeof referenceImagePath !== "string" || !referenceImagePath.trim()) {
-      throw new Error("Reference image path is required");
-    }
-
-    const expectedPrefix = `/product-images/${categoryFolder}/`;
-
-    const cleanReferencePath = referenceImagePath.split(/[?#]/)[0];
-
-    if (!cleanReferencePath.startsWith(expectedPrefix)) {
-      throw new Error("Reference image category mismatch");
-    }
-
-    const imageFilename = cleanReferencePath.slice(expectedPrefix.length);
-
-    const productSlug = String(productType)
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
-
-    const imageMatch = imageFilename.match(
-      /^\d{3}-([a-z0-9-]+)\.(png|jpg|jpeg|webp)$/i,
-    );
-
-    if (!imageMatch || imageMatch[1] !== productSlug) {
-      throw new Error("Reference image does not match selected product");
-    }
-
-    const imagePath = path.resolve(
-      REFERENCE_ROOT,
-      categoryFolder,
-      imageFilename,
-    );
-
-    const relativePath = path.relative(REFERENCE_ROOT, imagePath);
-
-    if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-      throw new Error("Invalid reference image path");
-    }
-
-    // ============================================
-    // 8. READ LOCAL IMAGE
-    // ============================================
-
-    await fs.access(imagePath);
-
-    const imageBuffer = await fs.readFile(imagePath);
-
-    if (!imageBuffer.length) {
-      throw new Error("Reference image is empty");
-    }
-
-    console.log("Reference Image:", imagePath);
-
-    console.log("Image Size:", imageBuffer.length, "bytes");
-
-    // ============================================
-    // 9. ENHANCE IMAGE-TO-IMAGE PROMPT
-    // ============================================
-
-    const enhancedPrompt = `
+      const imageToImagePrompt = `
 ${aiPrompt}
 
 IMAGE-TO-IMAGE DESIGN INSTRUCTIONS:
 
-Use the supplied reference image as the primary
-visual reference for the finished party product.
+Use the supplied reference image as the primary visual reference
+for the finished party product.
 
 PRODUCT:
 ${productType}
@@ -1092,16 +664,16 @@ ${JSON.stringify(formData, null, 2)}
 
 DESIGN REQUIREMENTS:
 
-1. Follow the reference image's professional
-   composition and visual direction.
+1. Follow the reference image's professional composition
+   and visual direction.
 
-2. Customize the artwork according to the
-   user's selected theme and preferences.
+2. Customize the artwork according to the user's selected
+   theme, text, colors and preferences.
 
 3. Use balanced spacing, premium typography,
    and a harmonious color palette.
 
-4. Generate a single complete product design.
+4. Generate a single complete party product design.
 
 5. Artwork must fill the entire canvas.
 
@@ -1113,102 +685,126 @@ DESIGN REQUIREMENTS:
 
 9. No picture frames or watermarks.
 
-10. Do not place a printable inside another
-    product image.
+10. Do not place a printable inside another product image.
 
 11. Maintain a clean, print-friendly layout.
 
 12. Follow the user's product information.
 
+13. Render user-provided text accurately.
+
 FINAL OUTPUT:
 Premium flat party product artwork.
-`;
+      `.trim();
 
-    // ============================================
-    // 10. CALL EXISTING AI SERVICE
-    // ============================================
+      // Existing aiService.js already supports this method.
+      const replicateUrl = await aiService.imageToImage({
+        prompt: imageToImagePrompt,
 
-    console.log("Starting Image-to-Image Generation...");
+        images: [referenceImageUrl],
 
-    const replicateUrl = await aiService.imageToImage({
-      prompt: enhancedPrompt,
+        aspectRatio: "match_input_image",
 
-      // Local reference image Buffer
-      images: [imageBuffer],
+        outputFormat: "png",
 
-      aspectRatio: formData.ratio ? aspectRatio : "match_input_image",
+        outputQuality: 95,
 
-      outputFormat: "png",
+        outputMegapixels: "1",
 
-      outputQuality: 95,
+        goFast: false,
 
-      outputMegapixels: "1",
-
-      goFast: false,
-
-      disableSafetyChecker: false,
-    });
-
-    if (!replicateUrl) {
-      throw new Error("AI returned no generated image URL");
-    }
-
-    console.log("Generated Image URL:", replicateUrl);
-
-    // ============================================
-    // 11. STORE GENERATED IMAGE
-    // ============================================
-
-    const storedImage = await storeImageLocally(
-      replicateUrl,
-      userId,
-      record._id,
-      "png",
-    );
-
-    // ============================================
-    // 12. PDF OUTPUT
-    // ============================================
-
-    if (isPdf) {
-      const generatedDir = path.join(__dirname, "..", "uploads", "generated");
-
-      await fs.mkdir(generatedDir, {
-        recursive: true,
+        disableSafetyChecker: false,
       });
 
-      const pdfResult = await generateProductPdf({
-        productType,
-        category,
-        formData,
-        designStyle,
-        outputDir: generatedDir,
-        imagePath: storedImage.localPath,
-      });
+      if (!replicateUrl) {
+        throw new Error("AI returned no image URL");
+      }
 
-      const storedPdf = await storePdfLocally(pdfResult, userId, record._id);
+      console.log("AI image generated:", replicateUrl);
 
-      // Save PDF record
+      // ============================================================
+      // SAVE GENERATED IMAGE LOCALLY
+      // ============================================================
+
+      const storedImage = await storeImageLocally(
+        replicateUrl,
+        userId,
+        record._id,
+        "png",
+      );
+
+      // ============================================================
+      // PDF OUTPUT
+      // ============================================================
+
+      if (isPdf) {
+        const generatedDir = path.join(__dirname, "..", "uploads", "generated");
+
+        await fs.mkdir(generatedDir, {
+          recursive: true,
+        });
+
+        const pdfResult = await generateProductPdf({
+          productType,
+          category,
+          formData,
+          designStyle,
+          outputDir: generatedDir,
+          imagePath: storedImage.localPath,
+        });
+
+        const storedPdf = await storePdfLocally(pdfResult, userId, record._id);
+
+        record.status = "completed";
+        record.aiPrompt = imageToImagePrompt;
+        record.imageUrl = storedPdf.url;
+        record.imageMimeType = storedPdf.mimeType;
+        record.imageSizeBytes = storedPdf.sizeBytes;
+        record.thumbnailUrl = storedImage.url;
+
+        record.pdfPromptSnapshot = {
+          productType,
+          category,
+          designStyle,
+          formData,
+        };
+
+        await record.save();
+
+        return res.json({
+          success: true,
+
+          data: {
+            id: record._id,
+            type: "pdf",
+            outputFormat: "PDF",
+
+            url: storedPdf.url,
+            thumbnailUrl: storedImage.url,
+
+            filename: `${productType.replace(/\s+/g, "-").toLowerCase()}.pdf`,
+
+            mimeType: "application/pdf",
+
+            durationMs: Date.now() - startedAt,
+          },
+        });
+      }
+
+      // ============================================================
+      // IMAGE OUTPUT
+      // ============================================================
+
       record.status = "completed";
-
-      record.aiPrompt = enhancedPrompt;
-
-      record.imageUrl = storedPdf.url;
-
-      record.imageMimeType = storedPdf.mimeType;
-
-      record.imageSizeBytes = storedPdf.sizeBytes;
-
+      record.aiPrompt = imageToImagePrompt;
+      record.imageUrl = storedImage.url;
+      record.imageMimeType = storedImage.mimeType;
+      record.imageSizeBytes = storedImage.sizeBytes;
       record.thumbnailUrl = storedImage.url;
 
-      record.pdfPromptSnapshot = {
-        productType,
-        category,
-        designStyle,
-        formData,
-      };
-
       await record.save();
+
+      console.log("Party product saved successfully");
 
       return res.json({
         success: true,
@@ -1216,109 +812,55 @@ Premium flat party product artwork.
         data: {
           id: record._id,
 
-          type: "pdf",
+          type: "image",
 
-          outputFormat: "PDF",
+          outputFormat: "Image",
 
-          url: storedPdf.url,
+          url: storedImage.url,
 
           thumbnailUrl: storedImage.url,
 
-          filename: `${productSlug}.pdf`,
+          filename: `${productType.replace(/\s+/g, "-").toLowerCase()}.png`,
 
-          mimeType: "application/pdf",
+          prompt: imageToImagePrompt,
 
           durationMs: Date.now() - startedAt,
         },
       });
-    }
+    } catch (genErr) {
+      console.error("Party Product Generation Failed:", genErr);
 
-    // ============================================
-    // 13. IMAGE OUTPUT
-    // ============================================
+      record.status = "failed";
+      record.errorMessage = genErr.message;
 
-    record.status = "completed";
+      await record.save();
 
-    record.aiPrompt = enhancedPrompt;
-
-    record.imageUrl = storedImage.url;
-
-    record.imageMimeType = storedImage.mimeType;
-
-    record.imageSizeBytes = storedImage.sizeBytes;
-
-    record.thumbnailUrl = storedImage.url;
-
-    await record.save();
-
-    return res.json({
-      success: true,
-
-      data: {
+      return res.status(500).json({
+        success: false,
+        message: genErr.message || "Generation failed",
         id: record._id,
-
-        type: "image",
-
-        outputFormat: "Image",
-
-        url: storedImage.url,
-
-        thumbnailUrl: storedImage.url,
-
-        filename: `${productSlug}.png`,
-
-        prompt: enhancedPrompt,
-
-        durationMs: Date.now() - startedAt,
-      },
-    });
-  } catch (err) {
-    // ============================================
-    // 14. ERROR HANDLING
-    // ============================================
-
-    console.error("Party Product Generation Failed:", err);
-
-    if (record) {
-      try {
-        record.status = "failed";
-
-        record.errorMessage = err.message || "Unknown error";
-
-        await record.save();
-      } catch (saveError) {
-        console.error("Failed to update product status:", saveError);
-      }
+      });
     }
+  } catch (err) {
+    console.error("generate() error:", err);
 
     return res.status(500).json({
       success: false,
-
-      message: err.message || "Product generation failed",
-
-      ...(record ? { id: record._id } : {}),
+      message: err.message || "Internal server error",
     });
   }
 };
 
 // ================================================================
-
 // GET /api/party-products
-
 // ================================================================
-
 exports.listMine = async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
-
     const items = await PartyProduct.find({ userId })
-
       .sort({ createdAt: -1 })
-
       .limit(50)
-
       .lean();
-
     return res.json({ success: true, data: items });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -1326,25 +868,18 @@ exports.listMine = async (req, res) => {
 };
 
 // ================================================================
-
 // GET /api/party-products/:id
-
 // ================================================================
-
 exports.getOne = async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
-
     const item = await PartyProduct.findOne({
       _id: req.params.id,
-
       userId,
     }).lean();
-
     if (!item) {
       return res.status(404).json({ success: false, message: "Not found" });
     }
-
     return res.json({ success: true, data: item });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -1352,29 +887,26 @@ exports.getOne = async (req, res) => {
 };
 
 // ================================================================
-
 // DELETE /api/party-products/:id
-
+// — removes Mongo document AND the local image file
 // ================================================================
-
 exports.remove = async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
-
     const item = await PartyProduct.findOne({
       _id: req.params.id,
-
       userId,
     });
-
     if (!item) {
       return res.status(404).json({ success: false, message: "Not found" });
     }
 
+    // Delete the physical file first (best effort)
     if (item.imageUrl) {
       await deleteLocalImage(item.imageUrl);
     }
 
+    // Then remove from DB
     await PartyProduct.deleteOne({ _id: item._id, userId });
 
     return res.json({ success: true });
@@ -1384,11 +916,8 @@ exports.remove = async (req, res) => {
 };
 
 // ================================================================
-
 // Exports
-
 // ================================================================
-
 exports.buildImagePrompt = buildImagePrompt;
 
 exports.storeImageLocally = storeImageLocally;
