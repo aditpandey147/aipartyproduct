@@ -8,9 +8,24 @@ import api from "../services/api";
 import heroBg from "../assets/images/game-banner.png";
 
 import {
-  Search, X, Sparkles, Wand2, Palette, Blend, Maximize2, Check,
-  MapPin, Layers, ArrowRight, Lightbulb, Download, ChevronDown,
-  Loader2, ExternalLink, Image as ImageIcon, FileText,
+  Search,
+  X,
+  Sparkles,
+  Wand2,
+  Palette,
+  Blend,
+  Maximize2,
+  Check,
+  MapPin,
+  Layers,
+  ArrowRight,
+  Lightbulb,
+  Download,
+  ChevronDown,
+  Loader2,
+  ExternalLink,
+  Image as ImageIcon,
+  FileText,
 } from "lucide-react";
 
 import {
@@ -24,8 +39,8 @@ import {
   getProductIcon,
   getFieldIcon,
   normalizeKey,
-  getOutputFormat,      // ✅ NEW
-  isPdfProduct,         // ✅ NEW
+  getOutputFormat, // ✅ NEW
+  isPdfProduct, // ✅ NEW
 } from "../data/productGeneratorData";
 
 const C = {
@@ -122,7 +137,9 @@ function StyledSelect({ value, onChange, options, placeholder = "Select..." }) {
         }`}
         style={{ boxShadow: "0 3px 5px #3b248015" }}
       >
-        <span className={`truncate ${value ? "text-[#080d39]" : "text-[#8b7fb3]"}`}>
+        <span
+          className={`truncate ${value ? "text-[#080d39]" : "text-[#8b7fb3]"}`}
+        >
           {value || placeholder}
         </span>
         <ChevronDown
@@ -153,7 +170,10 @@ function StyledSelect({ value, onChange, options, placeholder = "Select..." }) {
               >
                 <span className="truncate">{opt}</span>
                 {selected && (
-                  <Check className="h-3.5 w-3.5 shrink-0 text-[#7620e8]" strokeWidth={3} />
+                  <Check
+                    className="h-3.5 w-3.5 shrink-0 text-[#7620e8]"
+                    strokeWidth={3}
+                  />
                 )}
               </button>
             );
@@ -182,7 +202,7 @@ function ProductSelectModal({ isOpen, category, products, onSelect, onClose }) {
   if (!isOpen) return null;
 
   const filtered = products.filter((p) =>
-    p.toLowerCase().includes(search.toLowerCase())
+    p.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -267,7 +287,10 @@ function ProductSelectModal({ isOpen, category, products, onSelect, onClose }) {
 function GeneratingOverlay({ productName }) {
   const [dots, setDots] = useState("");
   useEffect(() => {
-    const t = setInterval(() => setDots((d) => (d.length >= 3 ? "" : d + ".")), 500);
+    const t = setInterval(
+      () => setDots((d) => (d.length >= 3 ? "" : d + ".")),
+      500,
+    );
     return () => clearInterval(t);
   }, []);
 
@@ -291,8 +314,12 @@ function GeneratingOverlay({ productName }) {
             <Sparkles className="h-12 w-12 text-white" />
           </div>
         </div>
-        <h2 className="mb-2 text-[24px] font-extrabold text-white">Generating{dots}</h2>
-        <p className="mb-1 text-[15px] font-semibold text-[#e5d4ff]">{productName}</p>
+        <h2 className="mb-2 text-[24px] font-extrabold text-white">
+          Generating{dots}
+        </h2>
+        <p className="mb-1 text-[15px] font-semibold text-[#e5d4ff]">
+          {productName}
+        </p>
         <p className="max-w-[320px] text-[13px] leading-[1.6] text-[#c9b8e8]">
           Our AI is designing your product. This usually takes 15–30 seconds.
         </p>
@@ -360,11 +387,15 @@ function SuccessOverlay({ productName }) {
             </svg>
           </div>
         </div>
-        <h2 className="mb-2 text-[26px] font-extrabold text-white">Generation Successful!</h2>
+        <h2 className="mb-2 text-[26px] font-extrabold text-white">
+          Generation Successful!
+        </h2>
         <p className="mb-6 text-[14px] font-semibold text-[#e5d4ff]">
           Your <b className="text-white">{productName}</b> is ready.
         </p>
-        <p className="text-[13px] text-[#c9b8e8]">Redirecting to My Creations...</p>
+        <p className="text-[13px] text-[#c9b8e8]">
+          Redirecting to My Creations...
+        </p>
       </div>
       <style>{`
         @keyframes popIn {
@@ -433,13 +464,13 @@ const ProductGeneratorStudio = () => {
     const warnings = [];
 
     const categoryIndex = CATEGORIES.findIndex(
-      (c) => normalizeKey(c.name) === normalizeKey(prefill.category)
+      (c) => normalizeKey(c.name) === normalizeKey(prefill.category),
     );
 
     if (categoryIndex === -1) {
       console.warn("AI prefill: category not found", prefill.category);
       setPrefillWarning(
-        `We couldn't auto-select the category "${prefill.category}". Please choose manually.`
+        `We couldn't auto-select the category "${prefill.category}". Please choose manually.`,
       );
       navigate(location.pathname, { replace: true, state: {} });
       return;
@@ -449,13 +480,13 @@ const ProductGeneratorStudio = () => {
     const availableProducts = PRODUCTS_BY_CATEGORY[categoryName] || [];
 
     const matchedProduct = availableProducts.find(
-      (p) => normalizeKey(p) === normalizeKey(prefill.productType)
+      (p) => normalizeKey(p) === normalizeKey(prefill.productType),
     );
 
     if (!matchedProduct) {
       console.warn("AI prefill: product not found", prefill.productType);
       setPrefillWarning(
-        `We couldn't auto-select the product "${prefill.productType}". Please choose manually.`
+        `We couldn't auto-select the product "${prefill.productType}". Please choose manually.`,
       );
       setSelectedCategory(categoryIndex);
       setHasUserPickedCategory(true);
@@ -489,7 +520,7 @@ const ProductGeneratorStudio = () => {
 
       if (field && Array.isArray(field.options) && field.options.length > 0) {
         const matchingOption = field.options.find(
-          (option) => normalizeKey(option) === normalizeKey(value)
+          (option) => normalizeKey(option) === normalizeKey(value),
         );
         if (matchingOption !== undefined) {
           safeFormData[key] = matchingOption;
@@ -504,7 +535,7 @@ const ProductGeneratorStudio = () => {
       const ratioOption = RATIO_OPTIONS.find(
         (ratio) =>
           normalizeKey(ratio.value) === normalizeKey(incomingData.ratio) ||
-          normalizeKey(ratio.label) === normalizeKey(incomingData.ratio)
+          normalizeKey(ratio.label) === normalizeKey(incomingData.ratio),
       );
 
       if (ratioOption) {
@@ -514,7 +545,9 @@ const ProductGeneratorStudio = () => {
           safeFormData.orientation = autoOrientation;
         }
       } else {
-        warnings.push(`Aspect ratio "${incomingData.ratio}" wasn't recognized.`);
+        warnings.push(
+          `Aspect ratio "${incomingData.ratio}" wasn't recognized.`,
+        );
       }
     }
 
@@ -595,37 +628,88 @@ const ProductGeneratorStudio = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     setLoading(true);
     setError("");
+    setSuccess(false);
 
     const ratioValue = (() => {
       const label = formValues.ratio;
+
       if (!label) return null;
+
       const opt = RATIO_OPTIONS.find((r) => r.label === label);
+
       return opt ? opt.value : null;
     })();
 
     try {
-      await api.post("/party-products/generate", {
+      // ============================================================
+      // GET USER-SELECTED PRODUCT IMAGE
+      // ============================================================
+
+      const referenceImagePath = getProductImageUrl(
+        currentCategory,
+        selectedProductType,
+      );
+
+      if (!referenceImagePath) {
+        throw new Error("Reference image not found for selected product");
+      }
+
+      console.log("Selected Product:", selectedProductType);
+      console.log("Reference Image:", referenceImagePath);
+
+      // ============================================================
+      // PREPARE REQUEST
+      // ============================================================
+
+      const payload = {
         category: currentCategory,
+
         productType: selectedProductType,
+
         designStyle: activeStyle,
-        outputFormat,                        // ✅ "PDF" or "Image"
-        referenceImagePath: getProductImageUrl(currentCategory, selectedProductType),
+
+        outputFormat,
+
+        referenceImagePath,
+
         formData: {
           ...formValues,
+
           ratio: ratioValue,
+
           designStyle: activeStyle,
+
           colorIndex: activeColor,
         },
-      });
+      };
+
+      // ============================================================
+      // GENERATE PRODUCT
+      // ============================================================
+
+      const response = await api.post("/party-products/generate", payload);
+
+      if (response.data?.success === false) {
+        throw new Error(response.data?.message || "Generation failed");
+      }
+
+      console.log("Generated Product:", response.data);
 
       setSuccess(true);
-      setTimeout(() => navigate("/my-creations"), 2000);
+
+      setTimeout(() => {
+        navigate("/my-creations");
+      }, 2000);
     } catch (err) {
+      console.error("Product Generation Error:", err);
+
       setError(
-        err.response?.data?.message || err.message || "Generation failed"
+        err.response?.data?.message || err.message || "Generation failed",
       );
+
       setLoading(false);
     }
   };
@@ -678,7 +762,8 @@ const ProductGeneratorStudio = () => {
                 className="mb-[17px] max-w-[465px] text-[16px] leading-[1.5]"
                 style={{ color: C.heroText }}
               >
-                Generate games, printables, invitations, and complete party kits in minutes.
+                Generate games, printables, invitations, and complete party kits
+                in minutes.
               </p>
               <button
                 onClick={() => navigate("/create-mystery")}
@@ -729,7 +814,9 @@ const ProductGeneratorStudio = () => {
                     className="relative flex flex-col items-center justify-end px-2 pb-3"
                     style={{
                       height: 158,
-                      border: active ? "2px solid #8c00ff" : "1px solid #e2dff8",
+                      border: active
+                        ? "2px solid #8c00ff"
+                        : "1px solid #e2dff8",
                       borderRadius: 19,
                       background: active
                         ? "linear-gradient(145deg,#fff,#f4e5ff)"
@@ -779,7 +866,10 @@ const ProductGeneratorStudio = () => {
               {/* ✅ HEADER — badge top-right */}
               <div className="flex items-start justify-between gap-3 border-b border-[#eeeaff] bg-white/25 px-6 py-4">
                 <div className="flex items-center gap-3">
-                  <CategoryIcon className="h-8 w-8" style={{ color: "#8200ff" }} />
+                  <CategoryIcon
+                    className="h-8 w-8"
+                    style={{ color: "#8200ff" }}
+                  />
                   <div>
                     <h3 className="text-[20px] font-extrabold tracking-tight text-[#080d39]">
                       {selectedProductType || currentCategory}
@@ -852,7 +942,8 @@ const ProductGeneratorStudio = () => {
                     No product selected yet
                   </h3>
                   <p className="mb-5 max-w-[360px] text-[13.5px] text-[#5d5191]">
-                    Choose a product from <b>{currentCategory}</b> to see the form.
+                    Choose a product from <b>{currentCategory}</b> to see the
+                    form.
                   </p>
                   <button
                     type="button"
@@ -883,11 +974,13 @@ const ProductGeneratorStudio = () => {
                             <div className="w-full">
                               <span className="text-[13px] font-bold text-[#080d39]">
                                 {field.label}{" "}
-                                {field.required && <b className="text-red-600">*</b>}
+                                {field.required && (
+                                  <b className="text-red-600">*</b>
+                                )}
                               </span>
 
                               {["text", "number", "date", "time"].includes(
-                                field.type
+                                field.type,
                               ) && (
                                 <input
                                   type={field.type}
@@ -905,7 +998,9 @@ const ProductGeneratorStudio = () => {
                                 <div className="mt-1">
                                   <StyledSelect
                                     value={value}
-                                    onChange={(v) => handleFieldChange(field.key, v)}
+                                    onChange={(v) =>
+                                      handleFieldChange(field.key, v)
+                                    }
                                     options={field.options || []}
                                     placeholder={`Select ${field.label}`}
                                   />
@@ -915,7 +1010,8 @@ const ProductGeneratorStudio = () => {
                               {field.type === "pill" && (
                                 <div className="mt-2 flex gap-2">
                                   {field.options?.map((opt) => {
-                                    const isActive = activePill[field.key] === opt;
+                                    const isActive =
+                                      activePill[field.key] === opt;
                                     return (
                                       <button
                                         key={opt}
@@ -931,7 +1027,9 @@ const ProductGeneratorStudio = () => {
                                           borderRadius: 10,
                                           padding: "7px 12px",
                                           fontSize: 12.5,
-                                          background: isActive ? "#f1ddff" : "#fff",
+                                          background: isActive
+                                            ? "#f1ddff"
+                                            : "#fff",
                                           boxShadow: "0 3px 5px #372b8a17",
                                           cursor: "pointer",
                                         }}
@@ -951,7 +1049,10 @@ const ProductGeneratorStudio = () => {
                                       className="h-[17px] w-[17px] accent-[#8100ed]"
                                       checked={!!value}
                                       onChange={(e) =>
-                                        handleFieldChange(field.key, e.target.checked)
+                                        handleFieldChange(
+                                          field.key,
+                                          e.target.checked,
+                                        )
                                       }
                                     />
                                     {field.label}
@@ -1013,7 +1114,8 @@ const ProductGeneratorStudio = () => {
                                 borderRadius: 10,
                                 padding: "7px 12px",
                                 fontSize: 12.5,
-                                background: activeStyle === s ? "#f1ddff" : "#fff",
+                                background:
+                                  activeStyle === s ? "#f1ddff" : "#fff",
                                 boxShadow: "0 3px 5px #372b8a17",
                                 cursor: "pointer",
                               }}
@@ -1047,8 +1149,12 @@ const ProductGeneratorStudio = () => {
                                 height: 30,
                                 borderRadius: "50%",
                                 background: bg,
-                                boxShadow: "inset 0 -4px 6px #0002,0 3px 6px #0002",
-                                outline: activeColor === i ? "3px solid #ede0ff" : "none",
+                                boxShadow:
+                                  "inset 0 -4px 6px #0002,0 3px 6px #0002",
+                                outline:
+                                  activeColor === i
+                                    ? "3px solid #ede0ff"
+                                    : "none",
                                 outlineOffset: 3,
                                 cursor: "pointer",
                               }}
@@ -1096,10 +1202,26 @@ const ProductGeneratorStudio = () => {
 
                 <ol className="m-0 flex list-none flex-col gap-3 p-0">
                   {[
-                    { n: 1, title: "Pick a category", desc: "Choose from Invitations, Decorations, Games, and more above." },
-                    { n: 2, title: "Select a product", desc: "A picker opens — choose the specific product you want." },
-                    { n: 3, title: "Fill in the details", desc: "Enter names, dates, themes, and pick an aspect ratio." },
-                    { n: 4, title: "Generate & download", desc: "Click Generate, preview your product, and export it." },
+                    {
+                      n: 1,
+                      title: "Pick a category",
+                      desc: "Choose from Invitations, Decorations, Games, and more above.",
+                    },
+                    {
+                      n: 2,
+                      title: "Select a product",
+                      desc: "A picker opens — choose the specific product you want.",
+                    },
+                    {
+                      n: 3,
+                      title: "Fill in the details",
+                      desc: "Enter names, dates, themes, and pick an aspect ratio.",
+                    },
+                    {
+                      n: 4,
+                      title: "Generate & download",
+                      desc: "Click Generate, preview your product, and export it.",
+                    },
                   ].map((step) => (
                     <li key={step.n} className="flex items-start gap-3">
                       <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#7620e8] text-[12px] font-bold text-white">
@@ -1134,7 +1256,10 @@ const ProductGeneratorStudio = () => {
                       key={i}
                       className="flex items-start gap-2 text-[12.5px] leading-[1.5] text-[#584985]"
                     >
-                      <Check size={14} className="mt-0.5 shrink-0 text-[#cb0a91]" />
+                      <Check
+                        size={14}
+                        className="mt-0.5 shrink-0 text-[#cb0a91]"
+                      />
                       <span>{tip}</span>
                     </li>
                   ))}
