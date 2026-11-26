@@ -370,6 +370,63 @@ NO WATERMARK.
 
 STRICT TEXT-ONLY IMAGE EDIT.
 `.trim();
+
+  const TYPOGRAPHY_MATCHING_RULES = `
+CRITICAL TYPOGRAPHY MATCHING — HIGHEST PRIORITY
+
+The reference image is the absolute source of truth.
+
+Replace the original text with the user's new text while preserving
+the exact visual appearance of the original typography.
+
+FONT MATCHING:
+- Match the original font family as closely as possible.
+- Match the original font style: serif, sans-serif, script, handwritten, or decorative.
+- Match the original font weight and thickness.
+- Match italic angles, letter shapes, curves, and decorative flourishes.
+- Do not introduce a different typography style.
+
+COLOR MATCHING:
+- Sample the text color from the reference image.
+- Match the same fill color, gradient, opacity, and saturation.
+- Match existing text outlines and stroke thickness.
+- Preserve any text shadow, glow, embossing, or texture.
+- Do not introduce new text colors.
+
+SIZE AND SPACING:
+- Match the original font size and visual scale.
+- Preserve letter spacing and kerning.
+- Preserve word spacing and line height.
+- Preserve the same number of lines when the replacement allows it.
+- Match original text rotation, curvature, and baseline.
+- Keep the original text block's width, height, and position.
+- If the new text is longer, make the smallest possible size adjustment.
+- Never overlap surrounding decorations.
+
+POSITION AND ALIGNMENT:
+- Match the original horizontal and vertical alignment.
+- Preserve the original text area's padding and margins.
+- Keep the same distance from borders, icons, and illustrations.
+- Match the original centerline and baseline.
+- Do not move or resize unrelated elements.
+
+CLEAN TEXT REPLACEMENT:
+- Completely remove the original lettering.
+- Reconstruct the background underneath removed text seamlessly.
+- Add the new lettering in the exact same location.
+- Do not leave ghost lettering, duplicated text, or visible editing artifacts.
+- Preserve spelling, capitalization, punctuation, and numbers exactly.
+- Never display field names or technical instructions.
+
+FINAL QUALITY CHECK:
+The replacement text must look as if it was part of
+the original professionally designed image.
+
+The typography should be visually indistinguishable
+from the original except for the changed wording.
+
+Do not redesign any other part of the artwork.
+`;
 }
 
 // ================================================================
@@ -615,27 +672,14 @@ exports.generate = async (req, res) => {
     // DeepSeek is NOT used.
     // Existing creative prompt generator is NOT used.
 
-    const aiPrompt = buildTextReplacementPrompt({
-      productType,
+    const aiPrompt = `
+      ${buildTextReplacementPrompt({
+        productType,
+        textFields,
+      })}
 
-      textFields,
-    });
-
-    console.log("======================================");
-
-    console.log("AI PARTY PRODUCT TEXT REPLACEMENT");
-
-    console.log("======================================");
-
-    console.log("Product:", productType);
-
-    console.log("Category:", category);
-
-    console.log("Reference Image:", referenceImageUrl);
-
-    console.log("Text Fields:", Object.keys(textFields));
-
-    console.log("Output:", isPdf ? "PDF" : "Image");
+      ${TYPOGRAPHY_MATCHING_RULES}
+      `.trim();
 
     // ------------------------------------------------------------
     // CREATE DATABASE RECORD
