@@ -8,16 +8,14 @@ const bcrypt = require('bcryptjs');
 // FEATURE COMPUTATION — inline
 // ============================================================
 const PLAN_ACCESS = {
-  unlimited:       [3, 4],
-  characterStudio: [5],
-  clueStudio:      [6],
-  puzzleStudio:    [7],
-  escapeRoom:      [8],
-  salesKit:        [9],
-  partyPlanner:    [10],
-  dfy:             [11, 12],
-  agency:          [13],
-  reseller:        [14],
+  Unlimited:        [3, 4], 
+  DesignStudio:     [5],  
+  BusinessStudio:   [6, 7],
+  BundleEmpire:     [8],   
+  TrafficMax:       [9, 10],
+  dfyPartyProduct:  [11, 12],
+  agencyLicense:    [13],    
+  resellerLicense:  [14],  
 };
 
 function computeFeatures(user) {
