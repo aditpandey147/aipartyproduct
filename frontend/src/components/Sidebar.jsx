@@ -146,19 +146,85 @@ const Sidebar = () => {
   // NAV ITEMS
   // ================================================================
   const navItems = [
-    { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: true },
-    { path: "/product-ideas", label: "Product Ideas", icon: Lightbulb, show: true },
-    { path: "/product-generator", label: "Party Product Studio", icon: Sparkles, show: true },
-    { path: "/party-kit-builder", label: "Party Kit Builder", icon: Gift, show: true },
-    { path: "/ai-sales-kit", label: "AI Sales Kit", icon: Tag, show: true },
-    { path: "/my-creations", label: "My Creations", icon: LayoutGrid, show: true },
-    { path: "/unlimited", label: "Unlimited", icon: Infinity, show: true },
-    { path: "/premium-design-studio", label: "Design Studio", icon: Wand2, show: true },
-    { path: "/business-studio", label: "Business Studio", icon: Briefcase, show: true },
-    { path: "/traffic-machine", label: "Traffic Machine", icon: Rocket, show: true },
-    { path: "/dfy-pack", label: "DFY Pack", icon: Package, show: true },
-    { path: "/agency", label: "Agency", icon: Building2, show: has("agency") },
-    { path: "/reseller", label: "Reseller", icon: Gift, show: has("reseller") },
+    // ─── Always available (baseline — Free / FE) ───
+    {
+      path: "/dashboard",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+      show: true,
+    },
+    {
+      path: "/product-ideas",
+      label: "Product Ideas",
+      icon: Lightbulb,
+      show: true,
+    },
+    {
+      path: "/product-generator",
+      label: "Party Product Studio",
+      icon: Sparkles,
+      show: true,
+    },
+    {
+      path: "/party-kit-builder",
+      label: "Party Kit Builder",
+      icon: Gift,
+      show: true,
+    },
+    {
+      path: "/my-creations",
+      label: "My Creations",
+      icon: LayoutGrid,
+      show: true,
+    },
+    {
+      path: "/unlimited",
+      label: "Unlimited",
+      icon: Infinity,
+      show: has("Unlimited"),
+    },
+    {
+      path: "/premium-design-studio",
+      label: "Design Studio",
+      icon: Wand2,
+      show: has("DesignStudio"),
+    },
+    {
+      path: "/business-studio",
+      label: "Business Studio",
+      icon: Briefcase,
+      show: has("BusinessStudio"),
+    },
+    {
+      path: "/bundle-empire",
+      label: "Bundle Empire",
+      icon: Layers,
+      show: has("BundleEmpire"),
+    },
+    {
+      path: "/traffic-machine",
+      label: "Traffic Machine",
+      icon: Rocket,
+      show: has("TrafficMax"),
+    },
+    {
+      path: "/dfy-pack",
+      label: "DFY Pack",
+      icon: Package,
+      show: has("dfyPartyProduct"),
+    },
+    {
+      path: "/agency",
+      label: "Agency",
+      icon: Building2,
+      show: has("agencyLicense"),
+    },
+    {
+      path: "/reseller",
+      label: "Reseller",
+      icon: Gift,
+      show: has("resellerLicense"),
+    },
     {
       path: "/training",
       icon: GraduationCap,
@@ -175,7 +241,13 @@ const Sidebar = () => {
       external: true,
       href: "https://www.podcastai.live/upgrades",
     },
-    { path: "/support", icon: Headset, label: "Support", show: true, target: "_blank" },
+    {
+      path: "/support",
+      icon: Headset,
+      label: "Support",
+      show: true,
+      target: "_blank",
+    },
   ];
 
   const adminNavItem = {
@@ -302,7 +374,7 @@ const Sidebar = () => {
             padding: "5px 27px",
             marginBottom: 6,
           }}
-         >
+        >
           {logo ? (
             <img
               src={logo}
@@ -316,7 +388,10 @@ const Sidebar = () => {
         </div>
 
         {/* NAV — padding-based links */}
-        <nav className="flex-1 overflow-y-auto" style={{ padding: "0 18px 18px" }}>
+        <nav
+          className="flex-1 overflow-y-auto"
+          style={{ padding: "0 18px 18px" }}
+        >
           {user?.role === "admin" && (
             <NavLink
               to={adminNavItem.path}
@@ -344,7 +419,10 @@ const Sidebar = () => {
                   <Shield
                     size={23}
                     strokeWidth={2.1}
-                    style={{ color: isActive ? "#fff" : THEME.navIcon, flexShrink: 0 }}
+                    style={{
+                      color: isActive ? "#fff" : THEME.navIcon,
+                      flexShrink: 0,
+                    }}
                   />
                   <span>{adminNavItem.label}</span>
                 </>
@@ -441,10 +519,12 @@ const Sidebar = () => {
             onClick={toggleDropdown}
             style={{ padding: "8px", borderRadius: 12 }}
             onMouseEnter={(e) => {
-              if (!isDropdownOpen) e.currentTarget.style.background = THEME.navHoverBg;
+              if (!isDropdownOpen)
+                e.currentTarget.style.background = THEME.navHoverBg;
             }}
             onMouseLeave={(e) => {
-              if (!isDropdownOpen) e.currentTarget.style.background = "transparent";
+              if (!isDropdownOpen)
+                e.currentTarget.style.background = "transparent";
             }}
           >
             <div className="relative shrink-0">
@@ -483,11 +563,17 @@ const Sidebar = () => {
               </div>
               <div className="mt-0.5 flex items-center gap-1">
                 {planLoading ? (
-                  <span style={{ fontSize: 11, color: THEME.muted }}>Loading...</span>
+                  <span style={{ fontSize: 11, color: THEME.muted }}>
+                    Loading...
+                  </span>
                 ) : (
                   <span
                     className="inline-flex items-center gap-1 truncate"
-                    style={{ fontSize: 12, color: THEME.muted, fontWeight: 500 }}
+                    style={{
+                      fontSize: 12,
+                      color: THEME.muted,
+                      fontWeight: 500,
+                    }}
                   >
                     {planName?.replace(/^Complyzo\s+/, "") || "Free"}
                   </span>
