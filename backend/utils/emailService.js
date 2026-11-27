@@ -89,7 +89,7 @@ exports.sendWelcomeEmail = async (user, password) => {
     <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #FFFFFF; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(80,40,160,0.10);">
       
       <!-- Header — Violet gradient -->
-      <div style="background: linear-gradient(110deg, #d634ef 0%, #8e15e5 50%, #4d00af 100%); padding: 40px 24px 32px; text-align: center;">
+      <div style="background: linear-gradient(110deg, #d634ef 0%, #8e15e5 50%, #4d00af 100%); background-color: #8e15e5; padding: 40px 24px 32px; text-align: center;">
         <div style="display: inline-block; background: rgba(255,255,255,0.20); padding: 6px 16px; border-radius: 50px; margin-bottom: 12px;">
           <span style="color: #FFFFFF; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;">Account Activated</span>
         </div>
@@ -106,28 +106,53 @@ exports.sendWelcomeEmail = async (user, password) => {
           Your <strong style="color: #151032;">AI Party Product Factory</strong> account is now active. Create complete, ready-to-use party products in minutes.
         </p>
         
-        <!-- Credentials Box — violet-tinted -->
-        <div style="background: linear-gradient(135deg, #F5EFFF 0%, #EADDFF 100%); border: 1px solid #7620e8; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-          <div style="display: flex; align-items: flex-start; gap: 14px;">
-            <div style="background: linear-gradient(110deg, #d634ef 0%, #8e15e5 50%, #4d00af 100%); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-              <span style="font-size: 20px;">🔑</span>
-            </div>
-            <div>
-              <p style="color: #4d00af; font-size: 14px; font-weight: 600; margin: 0;">Your Login Credentials</p>
-              <div style="color: #5b21b6; font-size: 13px; margin: 6px 0 0; line-height: 1.8;">
-                <strong>Email:</strong> ${user.email}<br>
-                <strong>Password:</strong> ${password || user.email}
-              </div>
-              <p style="color: #7c3aed; font-size: 11px; margin: 6px 0 0;">
-                ⚠️ Please change your password after login
-              </p>
-            </div>
-          </div>
-        </div>
+        <!-- ============================================================ -->
+        <!-- ✅ Credentials Box — email-safe table layout + inline SVG icon -->
+        <!-- ============================================================ -->
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background: linear-gradient(135deg, #F5EFFF 0%, #EADDFF 100%); background-color: #F5EFFF; border: 1px solid #7620e8; border-radius: 12px; margin: 0 0 24px;">
+          <tr>
+            <td style="padding: 20px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <!-- Icon tile — 40×40 violet gradient + white key SVG -->
+                  <td width="52" valign="top" style="width: 52px; padding-right: 14px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="40" style="width: 40px;">
+                      <tr>
+                        <td align="center" valign="middle" width="40" height="40" style="width: 40px; height: 40px; background: linear-gradient(110deg, #d634ef 0%, #8e15e5 50%, #4d00af 100%); background-color: #8e15e5; border-radius: 10px; font-size: 0; line-height: 0;">
+                          <img
+                            src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='7.5' cy='15.5' r='5.5'/><path d='M21 2l-9.6 9.6'/><path d='M15.5 7.5l3 3L22 7l-3-3'/></svg>"
+                            alt=""
+                            width="20"
+                            height="20"
+                            style="display: block; width: 20px; height: 20px; border: 0; outline: none; text-decoration: none;"
+                          />
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+
+                  <!-- Text content -->
+                  <td valign="top" style="font-family: 'Inter', Arial, sans-serif;">
+                    <p style="color: #4d00af; font-size: 14px; font-weight: 600; margin: 0; line-height: 1.4;">
+                      Your Login Credentials
+                    </p>
+                    <div style="color: #5b21b6; font-size: 13px; margin: 6px 0 0; line-height: 1.8;">
+                      <strong style="color: #4d00af;">Email:</strong> ${user.email}<br>
+                      <strong style="color: #4d00af;">Password:</strong> ${password || user.email}
+                    </div>
+                    <p style="color: #7c3aed; font-size: 11px; margin: 6px 0 0; line-height: 1.5;">
+                      ⚠️ Please change your password after login
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
 
         <!-- CTA Button -->
         <div style="text-align: center;">
-          <a href="${frontendUrl}/dashboard" style="display: inline-block; background: linear-gradient(110deg, #d634ef 0%, #8e15e5 50%, #4d00af 100%); color: #FFFFFF; padding: 14px 36px; border-radius: 10px; text-decoration: none; font-size: 14px; font-weight: 700; box-shadow: 0 4px 12px rgba(118, 32, 232, 0.35);">
+          <a href="${frontendUrl}/dashboard" style="display: inline-block; background: linear-gradient(110deg, #d634ef 0%, #8e15e5 50%, #4d00af 100%); background-color: #8e15e5; color: #FFFFFF; padding: 14px 36px; border-radius: 10px; text-decoration: none; font-size: 14px; font-weight: 700; box-shadow: 0 4px 12px rgba(118, 32, 232, 0.35);">
             Go to Dashboard →
           </a>
         </div>
@@ -214,7 +239,7 @@ exports.sendPasswordResetEmail = async (user, resetUrl) => {
         <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #FFFFFF; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(80,40,160,0.10);">
           
           <!-- Header — Violet gradient -->
-          <div style="background: linear-gradient(110deg, #d634ef 0%, #8e15e5 50%, #4d00af 100%); padding: 32px 24px; text-align: center;">
+          <div style="background: linear-gradient(110deg, #d634ef 0%, #8e15e5 50%, #4d00af 100%); background-color: #8e15e5; padding: 32px 24px; text-align: center;">
             <div style="display: inline-block; background: rgba(255,255,255,0.20); padding: 6px 16px; border-radius: 50px; margin-bottom: 12px;">
               <span style="color: #FFFFFF; font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;">Password Reset</span>
             </div>
@@ -232,7 +257,7 @@ exports.sendPasswordResetEmail = async (user, resetUrl) => {
             </p>
             
             <div style="text-align: center; margin: 32px 0;">
-              <a href="${resetUrl}" style="display: inline-block; background: linear-gradient(110deg, #d634ef 0%, #8e15e5 50%, #4d00af 100%); color: #FFFFFF; padding: 14px 36px; border-radius: 10px; text-decoration: none; font-size: 14px; font-weight: 700; box-shadow: 0 4px 12px rgba(118, 32, 232, 0.35);">
+              <a href="${resetUrl}" style="display: inline-block; background: linear-gradient(110deg, #d634ef 0%, #8e15e5 50%, #4d00af 100%); background-color: #8e15e5; color: #FFFFFF; padding: 14px 36px; border-radius: 10px; text-decoration: none; font-size: 14px; font-weight: 700; box-shadow: 0 4px 12px rgba(118, 32, 232, 0.35);">
                 Reset Password →
               </a>
             </div>
