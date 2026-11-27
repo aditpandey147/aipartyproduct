@@ -13,7 +13,8 @@ const ALERTS_EMAIL = process.env.ALERTS_EMAIL;
 const WELCOME_EMAIL = process.env.WELCOME_EMAIL;
 
 const WELCOME_NAME = process.env.WELCOME_NAME || "AI Party Product Factory";
-const ALERTS_NAME = process.env.ALERTS_NAME || "AI Party Product Factory Alerts";
+const ALERTS_NAME =
+  process.env.ALERTS_NAME || "AI Party Product Factory Alerts";
 
 console.log("📧 Email Configuration:");
 console.log(`   Token: ${ZEPTOMAIL_TOKEN ? "✅ Set" : "❌ Not Set"}`);
@@ -118,14 +119,18 @@ exports.sendWelcomeEmail = async (user, password) => {
                   <td width="52" valign="top" style="width: 52px; padding-right: 14px;">
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="40" style="width: 40px;">
                       <tr>
-                        <td align="center" valign="middle" width="40" height="40" style="width: 40px; height: 40px; background: linear-gradient(110deg, #d634ef 0%, #8e15e5 50%, #4d00af 100%); background-color: #8e15e5; border-radius: 10px; font-size: 0; line-height: 0;">
-                          <img
-                            src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='7.5' cy='15.5' r='5.5'/><path d='M21 2l-9.6 9.6'/><path d='M15.5 7.5l3 3L22 7l-3-3'/></svg>"
-                            alt=""
-                            width="20"
-                            height="20"
-                            style="display: block; width: 20px; height: 20px; border: 0; outline: none; text-decoration: none;"
-                          />
+                        <td align="center" valign="middle" width="40" height="40"
+                            style="width: 40px; height: 40px;
+                                  background: linear-gradient(110deg, #d634ef 0%, #8e15e5 50%, #4d00af 100%);
+                                  background-color: #8e15e5;
+                                  border-radius: 10px;
+                                  font-family: 'Segoe UI Symbol', 'Apple Color Emoji', 'Noto Sans Symbols', Arial, sans-serif;
+                                  font-size: 20px;
+                                  line-height: 40px;
+                                  color: #FFFFFF;
+                                  text-align: center;
+                                  vertical-align: middle;">
+                          &#128273;
                         </td>
                       </tr>
                     </table>
