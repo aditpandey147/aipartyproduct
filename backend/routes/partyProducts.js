@@ -8,5 +8,7 @@ router.post("/generate", auth, ctrl.generate);
 router.get("/", auth, ctrl.listMine);
 router.get("/:id", auth, ctrl.getOne);
 router.delete("/:id", auth, ctrl.remove);
+router.get("/stats", auth, ctrl.getStats);
+router.get("/:id",  auth, ctrl.getOne);
 
 module.exports = router;
