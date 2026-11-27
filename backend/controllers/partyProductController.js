@@ -1344,6 +1344,47 @@ exports.remove = async (req, res) => {
 };
 
 // ================================================================
+// GET /api/party-products/stats
+// ================================================================
+exports.getStats = async (req, res) => {
+  try {
+    const userId = req.user.id || req.user._id;
+
+    const [totalProducts, aiGenerations] = await Promise.all([
+      PartyProduct.countDocuments({ userId }),
+      PartyProduct.countDocuments({ userId, status: "completed" }),
+    ]);
+
+    const agg = await PartyProduct.aggregate([
+      { $match: { userId } },
+      {
+        $group: {
+          _id: null,
+          totalDownloads: { $sum: { $ifNull: ["$downloads", 0] } },
+          favorites:      { $sum: { $cond: ["$isFavorite", 1, 0] } },
+        },
+      },
+    ]);
+
+    const aggData = agg[0] || {};
+
+    return res.json({
+      success: true,
+      data: {
+        totalProducts,
+        aiGenerations,
+        totalDownloads: aggData.totalDownloads || 0,
+        favorites:      aggData.favorites      || 0,
+      },
+    });
+  } catch (err) {
+    console.error("getStats error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+
+// ================================================================
 // ADDITIONAL EXPORTS
 // ================================================================
 
