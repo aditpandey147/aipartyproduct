@@ -144,6 +144,7 @@ function App() {
             />
 
             {/* ==================== Free Routes (auth only) ==================== */}
+            {/* ─── Baseline routes (Free / FE — always available) ─── */}
             <Route
               path="/dashboard"
               element={
@@ -181,15 +182,6 @@ function App() {
             />
 
             <Route
-              path="/ai-sales-kit"
-              element={
-                <PrivateRoute>
-                  <AISalesKit />
-                </PrivateRoute>
-              }
-            />
-
-            <Route
               path="/my-creations"
               element={
                 <PrivateRoute>
@@ -198,66 +190,84 @@ function App() {
               }
             />
 
+            {/* ─── OTO 1 & 2 — Party Creator Unlimited ─── */}
             <Route
               path="/unlimited"
               element={
                 <PrivateRoute>
-                  <Unlimited />
+                  <FeatureRoute feature="Unlimited">
+                    <Unlimited />
+                  </FeatureRoute>
                 </PrivateRoute>
               }
             />
 
+            {/* ─── OTO 3 — Premium Party Design Studio ─── */}
             <Route
               path="/premium-design-studio"
               element={
                 <PrivateRoute>
-                  <PremiumDesignStudio />
+                  <FeatureRoute feature="DesignStudio">
+                    <PremiumDesignStudio />
+                  </FeatureRoute>
                 </PrivateRoute>
               }
             />
 
+            {/* ─── OTO 4 & 5 — AI Party Business Studio (Silver + Gold) ─── */}
             <Route
               path="/business-studio"
               element={
                 <PrivateRoute>
-                  <AIPartyBusinessStudio />
+                  <FeatureRoute feature="BusinessStudio">
+                    <AIPartyBusinessStudio />
+                  </FeatureRoute>
                 </PrivateRoute>
               }
             />
+
+            {/* ─── OTO 7 & 8 — AI Party Traffic Machine (Lite + Max) ─── */}
             <Route
               path="/traffic-machine"
               element={
                 <PrivateRoute>
-                  <TrafficMachine />
+                  <FeatureRoute feature="TrafficMax">
+                    <TrafficMachine />
+                  </FeatureRoute>
                 </PrivateRoute>
               }
             />
 
+            {/* ─── OTO 9 & 10 — DFY Party Product (Silver + Gold) ─── */}
             <Route
               path="/dfy-pack"
               element={
                 <PrivateRoute>
-                  <DfyPack />
+                  <FeatureRoute feature="dfyPartyProduct">
+                    <DfyPack />
+                  </FeatureRoute>
                 </PrivateRoute>
               }
             />
 
+            {/* ─── OTO 11 — Agency License ─── */}
             <Route
               path="/agency"
               element={
                 <PrivateRoute>
-                  <FeatureRoute feature="agency">
+                  <FeatureRoute feature="agencyLicense">
                     <Agency />
                   </FeatureRoute>
                 </PrivateRoute>
               }
             />
 
+            {/* ─── OTO 12 — Reseller License ─── */}
             <Route
               path="/reseller"
               element={
                 <PrivateRoute>
-                  <FeatureRoute feature="reseller">
+                  <FeatureRoute feature="resellerLicense">
                     <Reseller />
                   </FeatureRoute>
                 </PrivateRoute>
