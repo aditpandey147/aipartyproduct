@@ -46,7 +46,7 @@ import {
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000";
 
 // ================================================================
-// 🎨 THEME — exact HTML palette
+// 🎨 THEME
 // ================================================================
 const C = {
   mainBg: "#faf9ff",
@@ -121,7 +121,7 @@ const getImageUrl = (path) => {
 };
 
 // ================================================================
-// RECENT PROJECTS — live from /mysteries (matches HTML .recent)
+// RECENT PROJECTS — live from /product-templates
 // ================================================================
 function RecentProjects() {
   const navigate = useNavigate();
@@ -136,9 +136,9 @@ function RecentProjects() {
     return `${SERVER_URL}${p.startsWith("/") ? p : "/" + p}`;
   };
 
-  const DAILY_KEY = "trendingTemplates_v2"; // bump version so old 6-item cache is cleared
+  const DAILY_KEY = "trendingTemplates_v2";
   const DAY_MS = 24 * 60 * 60 * 1000;
-  const COUNT = 12; // ⬅️ 12 templates
+  const COUNT = 12;
 
   const getDailySeed = () => Math.floor(Date.now() / DAY_MS);
 
@@ -163,11 +163,11 @@ function RecentProjects() {
         const picked = ids
           .map((id) => allTemplates.find((t) => t._id === id))
           .filter(Boolean);
-        if (picked.length === COUNT) return picked; // ⬅️ 12
+        if (picked.length === COUNT) return picked;
       }
     } catch {}
     const shuffled = shuffleWithSeed(allTemplates, seed);
-    const picked = shuffled.slice(0, COUNT); // ⬅️ 12
+    const picked = shuffled.slice(0, COUNT);
     try {
       localStorage.setItem(cacheKey, JSON.stringify(picked.map((t) => t._id)));
       Object.keys(localStorage).forEach((k) => {
@@ -216,7 +216,6 @@ function RecentProjects() {
         padding: "12px 16px 12px",
       }}
     >
-      {/* Header */}
       <div
         className="panel-head"
         style={{
@@ -291,12 +290,11 @@ function RecentProjects() {
         </a>
       </div>
 
-      {/* Body — 4 columns × 3 rows = 12 cards */}
       {loading ? (
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(4, minmax(0, 1fr))", // ⬅️ 4 columns
+            gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
             gap: 8,
             marginTop: 12,
           }}
@@ -324,7 +322,7 @@ function RecentProjects() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(6, minmax(0, 1fr))", // ⬅️ 4 columns
+            gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
             gap: 8,
             marginTop: 12,
           }}
@@ -360,7 +358,6 @@ function RecentProjects() {
                   e.currentTarget.style.borderColor = C.panelBorder;
                 }}
               >
-                {/* Square image */}
                 <div
                   style={{
                     width: "100%",
@@ -408,7 +405,6 @@ function RecentProjects() {
                     </div>
                   )}
 
-                  {/* Tag */}
                   <span
                     style={{
                       position: "absolute",
@@ -449,7 +445,6 @@ function RecentProjects() {
                   </span>
                 </div>
 
-                {/* Body */}
                 <div style={{ padding: "6px 8px 8px" }}>
                   <strong
                     style={{
@@ -529,7 +524,6 @@ function FeaturedTemplate() {
         const res = await api.get("/product-templates");
         if (!cancelled && res.data?.success) {
           const all = (res.data.data || []).filter((t) => t.isActive !== false);
-          // Prefer a template explicitly marked featured; else pick the first
           const pick =
             all.find((t) => t.isFeatured === true) ||
             all.find((t) => t.featured === true) ||
@@ -570,7 +564,6 @@ function FeaturedTemplate() {
         padding: "18px 19px 19px",
       }}
     >
-      {/* Header */}
       <h2
         style={{
           fontSize: 19,
@@ -587,7 +580,6 @@ function FeaturedTemplate() {
         Featured Template
       </h2>
 
-      {/* Image / Loading */}
       <div
         className="featured-image"
         style={{
@@ -636,7 +628,6 @@ function FeaturedTemplate() {
         )}
       </div>
 
-      {/* Bottom row */}
       <div
         className="featured-bottom"
         style={{
@@ -716,7 +707,7 @@ function FeaturedTemplate() {
 }
 
 // ================================================================
-// OCCASION CARDS — Quick Create (matches HTML .occasion-grid)
+// OCCASIONS
 // ================================================================
 const OCCASIONS = [
   {
@@ -762,39 +753,6 @@ const OCCASIONS = [
     iconColor: "#8b5cf6",
   },
 ];
-// ================================================================
-// STATS DATA (matches HTML values)
-// ================================================================
-const STATS = [
-  {
-    num: "24",
-    label: "Total Products",
-    gain: "↑ +12%",
-    icon: Layers3,
-    pink: false,
-  },
-  {
-    num: "128",
-    label: "Total Downloads",
-    gain: "↑ +28%",
-    icon: Download,
-    pink: false,
-  },
-  {
-    num: "6",
-    label: "Favorite Templates",
-    gain: null,
-    icon: Heart,
-    pink: true,
-  },
-  {
-    num: "2,480",
-    label: "AI Generations",
-    gain: null,
-    icon: Sparkles,
-    pink: false,
-  },
-];
 
 // ================================================================
 // MAIN DASHBOARD
@@ -803,9 +761,106 @@ export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // ✅ Live stats
+  const [stats, setStats] = useState({
+    totalProducts: 0,
+    totalDownloads: 0,
+    favorites: 0,
+    aiGenerations: 0,
+  });
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setStatsLoading(true);
+
+        // Try the dedicated stats endpoint first
+        let data = null;
+        try {
+          const res = await api.get("/party-products/stats");
+          if (res.data?.success) data = res.data.data;
+        } catch (_) {
+          // fall through to client-side counting
+        }
+
+        // Fallback: count from /party-products (listMine)
+        if (!data) {
+          try {
+            const res = await api.get("/party-products");
+            const items = res.data?.data || [];
+            data = {
+              totalProducts: items.length,
+              aiGenerations: items.filter((i) => i.status === "completed")
+                .length,
+              totalDownloads: 0, // not tracked client-side
+              favorites: 0,
+            };
+          } catch (_) {
+            data = {
+              totalProducts: 0,
+              totalDownloads: 0,
+              favorites: 0,
+              aiGenerations: 0,
+            };
+          }
+        }
+
+        if (!cancelled) {
+          setStats({
+            totalProducts: data.totalProducts || 0,
+            totalDownloads: data.totalDownloads || 0,
+            favorites: data.favorites || 0,
+            aiGenerations: data.aiGenerations || 0,
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load stats:", err);
+      } finally {
+        if (!cancelled) setStatsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // ✅ Derived live STATS
+  const STATS = [
+    {
+      num: (stats.totalProducts || 0).toLocaleString(),
+      label: "Total Products",
+      icon: Layers3,
+      pink: false,
+      href: "/my-creations",
+    },
+    {
+      num: (stats.totalDownloads || 0).toLocaleString(),
+      label: "Total Downloads",
+      icon: Download,
+      pink: false,
+      href: "/my-creations",
+    },
+    {
+      num: (stats.favorites || 0).toLocaleString(),
+      label: "Favorite Templates",
+      icon: Heart,
+      pink: true,
+      href: "/templates",
+    },
+    {
+      num: (stats.aiGenerations || 0).toLocaleString(),
+      label: "AI Generations",
+      icon: Sparkles,
+      pink: false,
+      href: "/product-generator",
+    },
+  ];
+
   return (
     <div
-      className=" min-h-screen"
+      className="flex min-h-screen"
       style={{ background: C.mainBg, color: C.ink }}
     >
       <Sidebar />
@@ -823,7 +878,6 @@ export default function Dashboard() {
           <div className="max-w-[1650px] mx-auto">
             {/* ===== HERO ===== */}
             <section className="relative mb-[22px] overflow-hidden rounded-[23px] border border-[#e8d5ff] px-[32px] py-[36px]">
-              {/* Absolute background image — fills the hero */}
               <img
                 src={heroBg}
                 alt=""
@@ -831,13 +885,11 @@ export default function Dashboard() {
                 className="pointer-events-none absolute inset-0 z-0 h-full w-full object-cover object-right"
               />
 
-              {/* Soft overlay so text stays readable over the image */}
               <div
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-r from-[#f6e9ff]/95 via-[#f9e5fa]/80 to-[#e6caff]/50"
               />
 
-              {/* Decorative blobs */}
               <div
                 aria-hidden="true"
                 className="pointer-events-none absolute -right-[100px] -top-[180px] z-[1] h-[300px] w-[490px] rotate-[-20deg] rounded-full bg-[#cda4f44d]"
@@ -847,9 +899,7 @@ export default function Dashboard() {
                 className="pointer-events-none absolute right-[60px] -bottom-[145px] z-[1] h-[210px] w-[380px] rounded-full bg-[#ffffff38]"
               />
 
-              {/* Content */}
               <div className="relative z-[2] max-w-[550px]">
-                {/* ✅ TOP TAG */}
                 <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white px-4 py-1.5 text-[13px] font-extrabold text-[#4b075d] shadow-sm">
                   🎉 Stunning Party Products in Seconds
                 </div>
@@ -882,7 +932,7 @@ export default function Dashboard() {
               </div>
             </section>
 
-            {/* ===== STATS ===== */}
+            {/* ===== STATS (LIVE) ===== */}
             <section
               className="stats"
               style={{
@@ -898,6 +948,7 @@ export default function Dashboard() {
                   <div
                     key={i}
                     className="stat"
+                    onClick={() => navigate(s.href)}
                     style={{
                       height: 84,
                       background: C.statBg,
@@ -908,6 +959,16 @@ export default function Dashboard() {
                       alignItems: "center",
                       padding: "13px 15px",
                       gap: 13,
+                      cursor: "pointer",
+                      transition: "transform .15s, box-shadow .15s",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "translateY(-2px)";
+                      e.currentTarget.style.boxShadow = "0 10px 22px #5e479222";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "translateY(0)";
+                      e.currentTarget.style.boxShadow = "0 6px 16px #5e479211";
                     }}
                   >
                     <div
@@ -926,7 +987,7 @@ export default function Dashboard() {
                     >
                       <Icon size={28} strokeWidth={1.8} />
                     </div>
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <div
                         className="stat-num"
                         style={{
@@ -937,7 +998,22 @@ export default function Dashboard() {
                           color: C.ink,
                         }}
                       >
-                        {s.num}
+                        {statsLoading ? (
+                          <span
+                            style={{
+                              display: "inline-block",
+                              width: 44,
+                              height: 20,
+                              borderRadius: 6,
+                              background:
+                                "linear-gradient(90deg,#f5f0ff,#e6d6ff,#f5f0ff)",
+                              backgroundSize: "200% 100%",
+                              animation: "shimmer 1.4s ease-in-out infinite",
+                            }}
+                          />
+                        ) : (
+                          s.num
+                        )}
                       </div>
                       <div
                         className="stat-label"
@@ -946,28 +1022,13 @@ export default function Dashboard() {
                           color: "#65578e",
                           marginTop: 4,
                           whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
                         }}
                       >
                         {s.label}
                       </div>
                     </div>
-                    {s.gain && (
-                      <span
-                        className="gain"
-                        style={{
-                          marginLeft: "auto",
-                          color: C.gainColor,
-                          background: C.gainBg,
-                          borderRadius: 16,
-                          fontSize: 12,
-                          padding: "5px 7px",
-                          fontWeight: 700,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {s.gain}
-                      </span>
-                    )}
                   </div>
                 );
               })}
@@ -1091,7 +1152,6 @@ export default function Dashboard() {
                             e.currentTarget.style.boxShadow = "none";
                           }}
                         >
-                          {/* ✅ Lucide icon replaces the emoji */}
                           <div
                             className="occasion-art"
                             style={{
@@ -1134,7 +1194,6 @@ export default function Dashboard() {
               >
                 {/* QUICK INSTRUCTIONS */}
                 <section className="rounded-[24px] border border-[#ede8fb] bg-[#ffffffb8] px-5 py-5 shadow-[0_7px_18px_#5a478b0c]">
-                  {/* Header */}
                   <div className="mb-[18px] flex items-center justify-between">
                     <h2 className="m-0 flex items-center gap-3 text-[19px] font-extrabold tracking-[-0.6px] text-[#151032]">
                       <Sparkles size={22} className="text-[#7620e8]" />
@@ -1145,7 +1204,6 @@ export default function Dashboard() {
                     </span>
                   </div>
 
-                  {/* Steps */}
                   <ol className="m-0 flex list-none flex-col gap-3 p-0">
                     {[
                       {
@@ -1156,7 +1214,7 @@ export default function Dashboard() {
                       {
                         n: 2,
                         title: "Generate with AI",
-                        desc: "Click “Create with AI” and describe your party idea.",
+                        desc: 'Click "Create with AI" and describe your party idea.',
                       },
                       {
                         n: 3,
@@ -1180,7 +1238,6 @@ export default function Dashboard() {
                     ))}
                   </ol>
 
-                  {/* CTA */}
                   <button
                     onClick={() => navigate("/create-mystery")}
                     className="mt-[18px] flex h-10 w-full items-center justify-center gap-2 rounded-full border-0 bg-[linear-gradient(110deg,#d634ef_0%,#8e15e5_50%,#4d00af_100%)] text-[14px] font-bold text-white shadow-[0_7px_13px_#8819dd33] transition hover:brightness-110"
@@ -1188,6 +1245,7 @@ export default function Dashboard() {
                     Get Started <ArrowRight size={16} />
                   </button>
                 </section>
+
                 {/* FEATURED TEMPLATE */}
                 <FeaturedTemplate />
               </div>
@@ -1195,6 +1253,13 @@ export default function Dashboard() {
           </div>
         </main>
       </div>
+
+      <style>{`
+        @keyframes shimmer {
+          0%   { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+      `}</style>
     </div>
   );
 }
